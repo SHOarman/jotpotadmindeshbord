@@ -1,0 +1,72 @@
+{
+  "en": {
+    "translation": {
+      "siteTitle": "Jotpot",
+      "callNow": "Call Now",
+      "vehicleType": "Vehicle Type",
+      "location": "Location",
+      "filter": {
+        "division": "Division",
+        "district": "District",
+        "upazila": "Upazila",
+        "union": "Union",
+        "ward": "Ward",
+        "vehicleType": "Vehicle Type",
+        "select": "Select {{label}}"
+      },
+      "nav": {
+        "home": "Home",
+        "admin": "Admin",
+        "register": "Register as Driver"
+      },
+      "registration": {
+        "title": "Driver Registration",
+        "subtitle": "Join our directory and get more customers.",
+        "form": {
+          "name": "Full Name",
+          "phone": "Phone Number",
+          "vehicleModel": "Vehicle Model",
+          "vehicleRegNumber": "Vehicle Registration Number",
+          "submit": "Register Now",
+          "success": "Registration successful! An agent will contact you for activation.",
+          "disabled": "Registration is currently closed. Please contact an agent."
+        }
+      }
+    }
+  },
+  "bn": {
+    "translation": {
+      "siteTitle": "ঝটপট",
+      "callNow": "কল করুন",
+      "vehicleType": "গাড়ির ধরন",
+      "location": "অবস্থান",
+      "filter": {
+        "division": "বিভাগ",
+        "district": "জেলা",
+        "upazila": "উপজেলা",
+        "union": "ইউনিয়ন",
+        "ward": "ওয়ার্ড",
+        "vehicleType": "গাড়ির ধরন",
+        "select": "{{label}} নির্বাচন করুন"
+      },
+      "nav": {
+        "home": "হোম",
+        "admin": "অ্যাডমিন",
+        "register": "ড্রাইভার হিসেবে নিবন্ধন করুন"
+      },
+      "registration": {
+        "title": "ড্রাইভার নিবন্ধন",
+        "subtitle": "আমাদের ডিরেক্টরিতে যোগ দিন এবং আরও কাস্টমার পান।",
+        "form": {
+          "name": "পুরো নাম",
+          "phone": "ফোন নম্বর",
+          "vehicleModel": "গাড়ির মডেল",
+          "vehicleRegNumber": "গাড়ির নিবন্ধন নম্বর",
+          "submit": "নিবন্ধন করুন",
+          "success": "নিবন্ধন সফল হয়েছে! অ্যাক্টিভেশনের জন্য একজন এজেন্ট আপনার সাথে যোগাযোগ করবেন।",
+          "disabled": "নিবন্ধন বর্তমানে বন্ধ আছে। অনুগ্রহ করে একজন এজেন্টের সাথে যোগাযোগ করুন।"
+        }
+      }
+    }
+  }
+}

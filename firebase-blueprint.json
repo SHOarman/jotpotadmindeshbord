@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "Driver": {
+      "title": "Driver",
+      "description": "A rental transport driver profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the driver (usually matches auth UID if they manage their own, or generated)." },
+        "name": { "type": "string", "description": "Full name of the driver." },
+        "phone": { "type": "string", "description": "Contact phone number." },
+        "vehicleType": { "type": "string", "description": "Type of vehicle (e.g., Car, Micro, Bike)." },
+        "vehicleModel": { "type": "string", "description": "Model of the vehicle." },
+        "division": { "type": "string" },
+        "district": { "type": "string" },
+        "upazila": { "type": "string" },
+        "union": { "type": "string" },
+        "ward": { "type": "string" },
+        "expiryDate": { "type": "string", "format": "date-time", "description": "Subscription expiry date." },
+        "isAirAmbulance": { "type": "boolean", "description": "If the helicopter acts as air ambulance" },
+        "isSelfDriving": { "type": "boolean", "description": "If the motorcycle allows self driving" },
+        "isActive": { "type": "boolean", "description": "Whether the profile is manually active." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "vehicleType", "division", "district", "expiryDate"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "A node in the 5-level location hierarchy.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "bnName": { "type": "string" },
+        "level": { "type": "string", "enum": ["division", "district", "upazila", "union", "ward"] },
+        "parentId": { "type": "string", "description": "ID of the parent location." }
+      },
+      "required": ["name", "level"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A record of a subscription payment.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string" },
+        "amount": { "type": "number" },
+        "agentName": { "type": "string" },
+        "agentUid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "months": { "type": "number" }
+      },
+      "required": ["driverId", "amount", "agentUid", "timestamp"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global site settings.",
+      "type": "object",
+      "properties": {
+        "siteTitle": { "type": "string" },
+        "siteLogo": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "aboutUs": { "type": "string" },
+        "registrationEnabled": { "type": "boolean", "description": "Whether drivers can register themselves." },
+        "addEntryEnabled": { "type": "boolean", "description": "Whether public can add entries." },
+        "primaryColor": { "type": "string", "description": "Primary theme color (hex)." },
+        "secondaryColor": { "type": "string", "description": "Secondary theme color (hex)." }
+      }
+    },
+    "VehicleType": {
+      "title": "VehicleType",
+      "description": "Configuration for a vehicle type.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "bnName": { "type": "string" },
+        "monthlyFee": { "type": "number" },
+        "isVisible": { "type": "boolean" }
+      },
+      "required": ["name", "monthlyFee"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile with roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "agent", "user", "employee"] },
+        "name": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/drivers/{driverId}": {
+      "schema": "Driver",
+      "description": "Collection of transport drivers."
+    },
+    "/locations/{locationId}": {
+      "schema": "Location",
+      "description": "Hierarchical location data."
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment history ledger."
+    },
+    "/settings/global": {
+      "schema": "Settings",
+      "description": "Global application configuration."
+    },
+    "/vehicleTypes/{typeId}": {
+      "schema": "VehicleType",
+      "description": "Available vehicle types and pricing."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    }
+  }
+}
