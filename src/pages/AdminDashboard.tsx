@@ -30,7 +30,8 @@ const ActivityLogsTab = lazy(() => import('../admin/tabs/ActivityLogsTab'));
 const AdminDashboardContent: React.FC = () => {
   const { user, isAdmin, isAgent } = useAdmin();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [driverFilterStatus, setDriverFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [driverFilterStatus, setDriverFilterStatus] = useState<'all' | 'active' | 'pending'>('all');
+  const [highlightDriverId, setHighlightDriverId] = useState<string | null>(null);
 
   if (!isAdmin && !isAgent) {
     return (
@@ -70,7 +71,13 @@ const AdminDashboardContent: React.FC = () => {
       case 'messages':
         return <MessagesTab />;
       case 'drivers':
-        return <DriversTab initialFilterStatus={driverFilterStatus} />;
+        return (
+          <DriversTab
+            initialFilterStatus={driverFilterStatus}
+            highlightDriverId={highlightDriverId}
+            onClearHighlight={() => setHighlightDriverId(null)}
+          />
+        );
       case 'driver-registration':
         return <DriverRegistrationTab />;
       case 'vehicle-types':
@@ -117,7 +124,19 @@ const AdminDashboardContent: React.FC = () => {
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Stationary Header */}
         <div className="shrink-0 bg-white md:bg-transparent md:px-8 md:pt-6 md:pb-2 border-b md:border-b-0 border-gray-200">
-          <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} />
+          <AdminHeader
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onNavigateToPendingDrivers={() => {
+              setDriverFilterStatus('pending');
+              setActiveTab('drivers');
+            }}
+            onSelectPendingDriver={(driverId) => {
+              setDriverFilterStatus('pending');
+              setHighlightDriverId(driverId);
+              setActiveTab('drivers');
+            }}
+          />
         </div>
 
         {/* Independently Scrollable Tab Content Area */}

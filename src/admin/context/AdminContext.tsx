@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../../AuthContext';
 import { db } from '../../firebase';
-import { doc, getDoc, getDocs, collection, query, orderBy, limit, onSnapshot, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, orderBy, limit, onSnapshot, updateDoc, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { UserProfile, Location } from '../../types';
 
 interface GlobalSettings {
@@ -58,6 +58,7 @@ interface AdminContextType {
   refreshLocations: () => Promise<void>;
   refreshVehicleTypes: () => Promise<void>;
   refreshGlobalSettings: () => Promise<void>;
+  pendingDriversCount: number;
   loadingCore: boolean;
 }
 
@@ -136,9 +137,14 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  const [pendingDriversCount, setPendingDriversCount] = useState<number>(0);
+
   const refreshVehicleTypes = useCallback(async () => {
     try {
-      const snap = await getDocs(collection(db, 'vehicle_types'));
+      let snap = await getDocs(collection(db, 'vehicleTypes'));
+      if (snap.empty) {
+        snap = await getDocs(collection(db, 'vehicle_types'));
+      }
       setVehicleTypes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error('Error fetching vehicle types:', e);
@@ -178,7 +184,18 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Error in notifications listener:', err);
     });
 
-    return () => unsubNotif();
+    // Real-time pending drivers listener
+    const pendingQuery = query(collection(db, 'drivers'), where('isActive', '==', false), limit(100));
+    const unsubPending = onSnapshot(pendingQuery, (snap) => {
+      setPendingDriversCount(snap.size);
+    }, (err) => {
+      console.error('Error in pending drivers listener:', err);
+    });
+
+    return () => {
+      unsubNotif();
+      unsubPending();
+    };
   }, [isAdmin, isAgent, refreshLocations, refreshVehicleTypes, refreshGlobalSettings]);
 
   const markNotificationRead = useCallback(async (id: string, readBy: string[]) => {
@@ -210,6 +227,7 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setGlobalSettings,
         notifications,
         unreadNotificationsCount,
+        pendingDriversCount,
         markNotificationRead,
         logAction,
         refreshLocations,

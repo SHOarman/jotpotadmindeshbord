@@ -8,11 +8,11 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 
 export interface DashboardTabProps {
   setActiveTab: (tab: string) => void;
-  setDriverFilterStatus?: (status: 'all' | 'active' | 'inactive') => void;
+  setDriverFilterStatus?: (status: 'all' | 'active' | 'pending') => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({ setActiveTab, setDriverFilterStatus }) => {
-  const { isAdmin, isAgent, vehicleTypes } = useAdmin();
+  const { isAdmin, isAgent, vehicleTypes, pendingDriversCount } = useAdmin();
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -121,6 +121,37 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ setActiveTab, setDri
         </button>
       </div>
 
+      {/* Pending Driver Requests Alert Banner */}
+      {pendingDriversCount > 0 && (
+        <div
+          onClick={() => {
+            if (setDriverFilterStatus) setDriverFilterStatus('pending');
+            setActiveTab('drivers');
+          }}
+          className="p-4 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/5 border border-amber-300 rounded-2xl flex items-center justify-between cursor-pointer hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0">
+              <Users size={20} />
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-950 text-sm flex items-center gap-2">
+                নতুন ড্রাইভার রেজিস্ট্রেশন রিকোয়েস্ট এসেছে!
+                <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500 text-white font-extrabold animate-pulse">
+                  {pendingDriversCount} টি রিকোয়েস্ট পেন্ডিং
+                </span>
+              </h4>
+              <p className="text-xs text-amber-800/80 mt-0.5">
+                নতুন আবেদন পর্যালোচনা করে অনুমোদন (Accept / Approve) করতে এখানে ক্লিক করুন।
+              </p>
+            </div>
+          </div>
+          <button className="hidden sm:inline-flex px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 group-hover:scale-105">
+            একসেপ্ট ও অনুমোদন করুন &rarr;
+          </button>
+        </div>
+      )}
+
       {/* Main KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {/* Active Drivers */}
@@ -142,22 +173,22 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ setActiveTab, setDri
           </div>
         </div>
 
-        {/* Inactive / Expired */}
+        {/* Pending Requests */}
         <div
           onClick={() => {
-            if (setDriverFilterStatus) setDriverFilterStatus('inactive');
+            if (setDriverFilterStatus) setDriverFilterStatus('pending');
             setActiveTab('drivers');
           }}
           className="bg-white border flex flex-col gap-2 border-gray-100 p-6 rounded-3xl cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all group overflow-hidden relative"
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-[100px] -z-10 group-hover:scale-110 transition-transform" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-[100px] -z-10 group-hover:scale-110 transition-transform" />
           <div className="flex items-center justify-between z-10">
-            <h3 className="text-gray-500 font-bold text-xs uppercase tracking-wider">Inactive / Expired</h3>
-            <div className="p-2 bg-red-100 text-red-600 rounded-xl"><ShieldCheck size={18} /></div>
+            <h3 className="text-gray-500 font-bold text-xs uppercase tracking-wider">Pending Requests</h3>
+            <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><Users size={18} /></div>
           </div>
           <div className="flex items-end gap-2.5 z-10 mt-2">
-            <p className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">{inactiveDriversCount}</p>
-            <span className="text-red-600 font-bold text-xs mb-1 bg-red-50 px-2 py-0.5 rounded-md">Action Needed</span>
+            <p className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">{pendingDriversCount}</p>
+            <span className="text-amber-600 font-bold text-xs mb-1 bg-amber-50 px-2 py-0.5 rounded-md">Needs Review</span>
           </div>
         </div>
 

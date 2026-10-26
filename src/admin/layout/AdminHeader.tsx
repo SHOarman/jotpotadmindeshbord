@@ -9,12 +9,16 @@ export interface AdminHeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onQuickAdd?: () => void;
+  onSelectPendingDriver?: (driverId: string) => void;
+  onNavigateToPendingDrivers?: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeTab,
   setActiveTab,
   onQuickAdd,
+  onSelectPendingDriver,
+  onNavigateToPendingDrivers,
 }) => {
   const { profile, notifications, unreadNotificationsCount, markNotificationRead, isAdmin } = useAdmin();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -159,16 +163,30 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                       return (
                         <div
                           key={n.id}
-                          onClick={() => markNotificationRead(n.id, n.readBy || [])}
+                          onClick={() => {
+                            markNotificationRead(n.id, n.readBy || []);
+                            setShowNotifications(false);
+                            if (n.type === 'registration') {
+                              if (n.driverId && onSelectPendingDriver) {
+                                onSelectPendingDriver(n.driverId);
+                              } else if (onNavigateToPendingDrivers) {
+                                onNavigateToPendingDrivers();
+                              } else {
+                                setActiveTab?.('drivers');
+                              }
+                            } else if (n.type === 'renewal') {
+                              setActiveTab?.('renewals');
+                            }
+                          }}
                           className={cn(
-                            'p-3.5 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 text-left',
+                            'p-3.5 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 text-left group',
                             !isRead ? 'bg-orange-50/40' : ''
                           )}
                         >
                           <div className="flex justify-between items-start mb-1">
                             <span
                               className={cn(
-                                'text-[10px] font-bold px-2 py-0.5 rounded-md',
+                                'text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1',
                                 n.type === 'registration'
                                   ? 'bg-green-100 text-green-700'
                                   : 'bg-orange-100 text-orange-700'
@@ -185,6 +203,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                           <p className={cn('text-xs mt-1 leading-snug', !isRead ? 'font-bold text-gray-900' : 'text-gray-600')}>
                             {n.message}
                           </p>
+                          {n.type === 'registration' && (
+                            <div className="mt-2 flex items-center justify-between pt-1.5 border-t border-gray-100">
+                              <span className="text-[11px] font-bold text-primary group-hover:underline flex items-center gap-1">
+                                রিকোয়েস্ট দেখুন ও একসেপ্ট করুন &rarr;
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })

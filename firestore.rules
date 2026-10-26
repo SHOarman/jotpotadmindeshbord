@@ -155,7 +155,7 @@ service cloud.firestore {
       );
       // Agents can update fields, admins can update anything
       allow update: if isAgent();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isAgent() || hasPermission('drivers.edit');
     }
 
     // Locations
@@ -166,6 +166,10 @@ service cloud.firestore {
 
     // Vehicle Types
     match /vehicleTypes/{typeId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(typeId);
+    }
+    match /vehicle_types/{typeId} {
       allow read: if true;
       allow write: if isAdmin() && isValidId(typeId);
     }

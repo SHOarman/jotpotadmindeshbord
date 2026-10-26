@@ -35,14 +35,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = React.memo(({
   setActiveTab,
   unreadMessagesCount = 0,
 }) => {
-  const { isAdmin, profile } = useAdmin();
+  const { isAdmin, profile, pendingDriversCount } = useAdmin();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   let allTabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'messages', label: 'Messages', icon: MessageCircle, badge: unreadMessagesCount > 0 },
-    { id: 'drivers', label: 'Drivers', icon: Users },
+    {
+      id: 'drivers',
+      label: 'Drivers',
+      icon: Users,
+      badge: pendingDriversCount > 0,
+      badgeText: pendingDriversCount > 0 ? `${pendingDriversCount}` : undefined,
+    },
     { id: 'driver-registration', label: 'Driver Registration', icon: UserPlus },
     { id: 'vehicle-types', label: 'Vehicle Types', icon: Car },
     { id: 'users', label: 'Sub Admin Management', icon: ShieldCheck },
@@ -115,9 +121,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = React.memo(({
                   className={cn('md:w-5 md:h-5', isActive ? 'text-orange-600' : 'opacity-70')}
                 />
                 <span className="truncate">{tab.label}</span>
-                {tab.badge && (
+                {tab.badgeText ? (
+                  <span className="hidden md:inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white shrink-0 ml-auto animate-pulse shadow-xs">
+                    {tab.badgeText} New
+                  </span>
+                ) : tab.badge ? (
                   <span className="absolute top-1 md:static right-2 w-2 h-2 rounded-full bg-red-500 shrink-0 ml-auto" />
-                )}
+                ) : null}
               </button>
             );
           })}
