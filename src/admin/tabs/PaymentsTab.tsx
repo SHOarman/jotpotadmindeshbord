@@ -89,7 +89,7 @@ export const PaymentsTab: React.FC = () => {
       });
 
       let currentExpiry = driver.expiryDate?.toDate ? driver.expiryDate.toDate() : new Date();
-      if (!driver.isActive || currentExpiry < new Date()) {
+      if (!driver.isActive || currentExpiry < new Date() || currentExpiry.getFullYear() > 2090) {
         currentExpiry = new Date();
       }
       const newExpiry = new Date(currentExpiry.getTime() + 1000 * 60 * 60 * 24 * duration);
@@ -98,6 +98,7 @@ export const PaymentsTab: React.FC = () => {
         doc(db, 'drivers', driver.id),
         {
           isActive: true,
+          subscriptionStatus: 'active',
           expiryDate: newExpiry,
           updatedAt: serverTimestamp(),
         },
@@ -149,7 +150,7 @@ export const PaymentsTab: React.FC = () => {
       if (driverSnap.exists()) {
         const driverData = driverSnap.data();
         let currentExpiry = driverData.expiryDate?.toDate ? driverData.expiryDate.toDate() : new Date();
-        if (!driverData.isActive || currentExpiry < new Date()) {
+        if (!driverData.isActive || currentExpiry < new Date() || currentExpiry.getFullYear() > 2090) {
           currentExpiry = new Date();
         }
 
@@ -161,6 +162,7 @@ export const PaymentsTab: React.FC = () => {
           {
             expiryDate: newExpiry,
             isActive: true,
+            subscriptionStatus: 'active',
           },
           { merge: true }
         );

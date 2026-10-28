@@ -115,6 +115,12 @@ async function checkRenewalsAndSendReminders() {
       } else if (daysLeft < 0 && data.isActive) {
         reminderType = "expired";
         message = `Hello ${data.name}, your Jhotpot Service subscription has expired on ${dateStr}. Please renew to restore your service.`;
+        // Deactivate driver in Firestore immediately so their vehicle does not show in app/web mode
+        batch.update(doc.ref, {
+          isActive: false,
+          subscriptionStatus: "expired",
+        });
+        updatesCount++;
       }
 
       if (reminderType && message) {
@@ -125,21 +131,18 @@ async function checkRenewalsAndSendReminders() {
 
         const success = await sendWhatsAppMessage(data.phone, message);
         
-        if (success) {
-          batch.update(doc.ref, {
-            lastReminderSentDate: todayStr,
-            reminderType: reminderType,
-            messageStatus: "sent"
-          });
-          updatesCount++;
-        } else {
-          batch.update(doc.ref, {
-            lastReminderSentDate: todayStr,
-            reminderType: reminderType,
-            messageStatus: "failed"
-          });
-          updatesCount++;
+        const updatePayload: any = {
+          lastReminderSentDate: todayStr,
+          reminderType: reminderType,
+          messageStatus: success ? "sent" : "failed"
+        };
+        if (reminderType === "expired") {
+          updatePayload.isActive = false;
+          updatePayload.subscriptionStatus = "expired";
         }
+
+        batch.update(doc.ref, updatePayload);
+        updatesCount++;
       }
     }
 

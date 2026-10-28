@@ -5,7 +5,7 @@ import { useAdmin } from '../context/AdminContext';
 import { CascadingFilter } from '../../components/CascadingFilter';
 
 export const DriverRegistrationTab: React.FC = () => {
-  const { vehicleTypes, logAction } = useAdmin();
+  const { vehicleTypes, globalSettings, logAction } = useAdmin();
 
   const [driverForm, setDriverForm] = useState({
     name: '',
@@ -48,12 +48,14 @@ export const DriverRegistrationTab: React.FC = () => {
       }
 
       const vType = vehicleTypes.find((v) => v.name === driverForm.vehicleType);
-      const isUnlimited = vType && vType.monthlyFee === 0;
+      const isAllFree = globalSettings?.allVehiclesFree === true;
+      const isUnlimited = isAllFree || (vType && Number(vType.monthlyFee || 0) === 0);
 
       await addDoc(collection(db, 'drivers'), {
         ...driverForm,
         phone: driverForm.phone.trim(),
         isActive: true,
+        subscriptionStatus: 'active',
         expiryDate: isUnlimited ? new Date('2099-12-31') : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

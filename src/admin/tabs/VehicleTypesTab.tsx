@@ -21,11 +21,13 @@ import {
   X,
   Check,
   Layers,
+  RefreshCw,
 } from 'lucide-react';
 import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAdmin } from '../context/AdminContext';
 import { cn } from '../../lib/utils';
+import { syncDriversSubscriptionStatus } from '../../lib/subscriptionSync';
 
 const STANDARD_FEES: Record<string, number> = {
   bike: 100,
@@ -124,6 +126,7 @@ export const VehicleTypesTab: React.FC = () => {
 
   const [seedingVehicles, setSeedingVehicles] = useState(false);
   const [pricingActionLoading, setPricingActionLoading] = useState(false);
+  const [syncingDrivers, setSyncingDrivers] = useState(false);
 
   const defaultVehicles = [
     { name: 'Bike', bnName: 'বাইক', monthlyFee: 100 },
@@ -162,6 +165,21 @@ export const VehicleTypesTab: React.FC = () => {
     vehicleTypes.length > 0 &&
     vehicleTypes.every((v) => Number(v.monthlyFee || 0) === 0);
 
+  const handleManualSyncDrivers = async () => {
+    setSyncingDrivers(true);
+    try {
+      const res = await syncDriversSubscriptionStatus(vehicleTypes, isAllFree);
+      alert(
+        `✓ সাবস্ক্রিপশন সিঙ্ক সম্পন্ন হয়েছে!\n\n• মোট ড্রাইভার: ${res.totalDrivers} জন\n• অ্যাপ/ওয়েবে মেয়াদোত্তীর্ণ ও পেমেন্টহীন হাইড করা হয়েছে: ${res.deactivatedExpired} টি গাড়ি\n• ফ্রি মোডে সচল করা হয়েছে: ${res.reactivatedFree} টি গাড়ি\n\nএখন মোবাইল অ্যাপ এবং ওয়েবসাইটে শুধু ভ্যালিড সাবস্ক্রিপশন থাকা গাড়িই প্রদর্শিত হবে।`
+      );
+    } catch (err) {
+      console.error('Error during manual sync:', err);
+      alert('ড্রাইভার স্ট্যাটাস সিঙ্ক করতে সমস্যা হয়েছে।');
+    } finally {
+      setSyncingDrivers(false);
+    }
+  };
+
   const handleMakeAllVehiclesFree = async () => {
     if (!isAdmin && !hasPermission('vehicle-types')) {
       alert('You do not have permission to change vehicle pricing.');
@@ -171,14 +189,20 @@ export const VehicleTypesTab: React.FC = () => {
 
     setPricingActionLoading(true);
     try {
+      const updatedTypes: any[] = [];
       for (const v of vehicleTypes) {
         await updateVehicleBoth(v.id, { monthlyFee: 0 });
+        updatedTypes.push({ ...v, monthlyFee: 0 });
       }
 
       await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: true }, { merge: true });
       await Promise.all([refreshVehicleTypes(), refreshGlobalSettings()]);
+
+      // Sync drivers so all approved vehicles are active in app/web mode
+      await syncDriversSubscriptionStatus(updatedTypes, true);
+
       await logAction('pricing_free_all', 'Set all vehicle types monthly fee to ৳0 (Free)');
-      alert('✓ সফল হয়েছে! সব গাড়ির মাসিক ফি ৳০ (সম্পূর্ণ ফ্রি) করা হয়েছে।');
+      alert('✓ সফল হয়েছে! সব গাড়ির মাসিক ফি ৳০ (সম্পূর্ণ ফ্রি) করা হয়েছে এবং গাড়িগুলো অ্যাপে সচল রাখা হয়েছে।');
     } catch (err) {
       console.error('Error setting all vehicles free:', err);
       alert('সব গাড়ি ফ্রি করতে সমস্যা হয়েছে।');
@@ -196,16 +220,22 @@ export const VehicleTypesTab: React.FC = () => {
 
     setPricingActionLoading(true);
     try {
+      const updatedTypes: any[] = [];
       for (const v of vehicleTypes) {
         const key = (v.name || '').trim().toLowerCase();
         const stdFee = STANDARD_FEES[key] !== undefined ? STANDARD_FEES[key] : (Number(v.monthlyFee) || 100);
         await updateVehicleBoth(v.id, { monthlyFee: stdFee });
+        updatedTypes.push({ ...v, monthlyFee: stdFee });
       }
 
       await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: false }, { merge: true });
       await Promise.all([refreshVehicleTypes(), refreshGlobalSettings()]);
+
+      // Crucial: Deactivate expired / unpaid drivers from app & web mode immediately
+      const syncRes = await syncDriversSubscriptionStatus(updatedTypes, false);
+
       await logAction('pricing_restore_standard', 'Restored standard vehicle monthly fees');
-      alert('✓ সব গাড়ির স্ট্যান্ডার্ড মাসিক ফি সফলভাবে ফিরিয়ে আনা হয়েছে!');
+      alert(`✓ সব গাড়ির স্ট্যান্ডার্ড মাসিক ফি সফলভাবে ফিরিয়ে আনা হয়েছে!\n\nপেইড সাবস্ক্রিপশন ছাড়া বা মেয়াদোত্তীর্ণ ${syncRes.deactivatedExpired} টি গাড়ি মোবাইল অ্যাপ ও ওয়েবসাইট থেকে স্বয়ংক্রিয়ভাবে হাইড (deactivated) করা হয়েছে।`);
     } catch (err) {
       console.error('Error restoring standard fees:', err);
       alert('ফি ফিরিয়ে আনতে সমস্যা হয়েছে।');
@@ -224,6 +254,7 @@ export const VehicleTypesTab: React.FC = () => {
     try {
       await updateVehicleBoth(v.id, { monthlyFee: newFee });
       await refreshVehicleTypes();
+      await syncDriversSubscriptionStatus();
       await logAction('toggle_single_free', `Changed fee for ${v.name} to ৳${newFee}`);
     } catch (err) {
       console.error('Error changing vehicle fee:', err);
@@ -289,6 +320,7 @@ export const VehicleTypesTab: React.FC = () => {
       await updateVehicleBoth(editingVehicle.id, editVehicleForm);
       setEditingVehicle(null);
       await refreshVehicleTypes();
+      await syncDriversSubscriptionStatus();
       await logAction('edit_vehicle_type', `Updated vehicle type ${editVehicleForm.name}`);
     } catch (err) {
       console.error('Error saving vehicle type:', err);
@@ -433,6 +465,20 @@ export const VehicleTypesTab: React.FC = () => {
                   title="ডিফল্ট গাড়ির তালিকা লোড করুন"
                 >
                   {seedingVehicles ? 'Seeding...' : 'Seed Defaults'}
+                </button>
+              )}
+
+              {/* Sync Drivers Subscription in App / Web */}
+              {(isAdmin || hasPermission('vehicle-types')) && (
+                <button
+                  type="button"
+                  onClick={handleManualSyncDrivers}
+                  disabled={syncingDrivers}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 transition-all flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                  title="অ্যাপ ও ওয়েবসাইটে মেয়াদোত্তীর্ণ গাড়ি হাইড করার জন্য ড্রাইভার সাবস্ক্রিপশন সিঙ্ক করুন"
+                >
+                  <RefreshCw size={13} className={cn('text-primary', syncingDrivers && 'animate-spin')} />
+                  <span>{syncingDrivers ? 'সিঙ্ক হচ্ছে...' : 'সাবস্ক্রিপশন সিঙ্ক'}</span>
                 </button>
               )}
 

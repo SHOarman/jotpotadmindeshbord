@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, PhoneCall } from 'lucide-react';
+import { MessageCircle, PhoneCall, RefreshCw } from 'lucide-react';
 import { collection, query, limit, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { useAdmin } from '../context/AdminContext';
 import { cn } from '../../lib/utils';
 import axios from 'axios';
+import { syncDriversSubscriptionStatus } from '../../lib/subscriptionSync';
 
 export interface RenewalsTabProps {
   setActiveTab: (tab: string) => void;
@@ -12,7 +13,7 @@ export interface RenewalsTabProps {
 }
 
 export const RenewalsTab: React.FC<RenewalsTabProps> = ({ setActiveTab, onRenewDriver }) => {
-  const { isAdmin, hasPermission } = useAdmin();
+  const { isAdmin, hasPermission, vehicleTypes, globalSettings } = useAdmin();
 
   const [drivers, setDrivers] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -24,6 +25,7 @@ export const RenewalsTab: React.FC<RenewalsTabProps> = ({ setActiveTab, onRenewD
   const [renewalEndDate, setRenewalEndDate] = useState('');
   const [renewalPaymentStatusFilter, setRenewalPaymentStatusFilter] = useState('all');
   const [triggeringReminders, setTriggeringReminders] = useState(false);
+  const [syncingExpired, setSyncingExpired] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,6 +63,24 @@ export const RenewalsTab: React.FC<RenewalsTabProps> = ({ setActiveTab, onRenewD
       alert('Failed to trigger reminders.');
     } finally {
       setTriggeringReminders(false);
+    }
+  };
+
+  const handleSyncExpiredDrivers = async () => {
+    setSyncingExpired(true);
+    try {
+      const res = await syncDriversSubscriptionStatus(vehicleTypes, globalSettings?.allVehiclesFree);
+      // Refresh local driver data
+      const dSnap = await getDocs(query(collection(db, 'drivers'), limit(300)));
+      setDrivers(dSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      alert(
+        `✓ সাবস্ক্রিপশন সিঙ্ক সম্পন্ন!\n\n• মেয়াদোত্তীর্ণ ও পেমেন্টহীন নিষ্ক্রিয় করা হয়েছে: ${res.deactivatedExpired} টি গাড়ি\n• ফ্রি মোডে সচল করা হয়েছে: ${res.reactivatedFree} টি গাড়ি\n\nঅ্যাপ এবং ওয়েবসাইটে এক্সপায়ার্ড গাড়ি আর দেখা যাবে না।`
+      );
+    } catch (e) {
+      console.error('Error syncing expired drivers:', e);
+      alert('সিঙ্ক করতে সমস্যা হয়েছে।');
+    } finally {
+      setSyncingExpired(false);
     }
   };
 
@@ -155,10 +175,22 @@ export const RenewalsTab: React.FC<RenewalsTabProps> = ({ setActiveTab, onRenewD
             <button
               onClick={handleTriggerReminders}
               disabled={triggeringReminders}
-              className="bg-green-100 text-green-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-200 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              className="bg-green-100 text-green-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-200 transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-2xs"
             >
               <MessageCircle size={14} />
               {triggeringReminders ? 'Triggering...' : 'Trigger Reminders'}
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={handleSyncExpiredDrivers}
+              disabled={syncingExpired}
+              title="অ্যাপ ও ওয়েবসাইটে মেয়াদোত্তীর্ণ গাড়ি হাইড করার জন্য ড্রাইভার সাবস্ক্রিপশন সিঙ্ক করুন"
+              className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-2xs"
+            >
+              <RefreshCw size={13} className={cn('text-amber-600', syncingExpired && 'animate-spin')} />
+              <span>{syncingExpired ? 'সিঙ্ক হচ্ছে...' : 'এক্সপায়ার্ড নিষ্ক্রিয় করুন (Sync App/Web)'}</span>
             </button>
           )}
         </div>

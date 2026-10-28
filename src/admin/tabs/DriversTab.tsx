@@ -50,6 +50,7 @@ import { db } from '../../firebase';
 import { useAdmin } from '../context/AdminContext';
 import { CascadingFilter } from '../../components/CascadingFilter';
 import { cn } from '../../lib/utils';
+import { syncDriversSubscriptionStatus } from '../../lib/subscriptionSync';
 
 export interface DriversTabProps {
   initialFilterStatus?: 'all' | 'active' | 'inactive' | 'pending' | 'expiring';
@@ -87,13 +88,14 @@ export const DriversTab: React.FC<DriversTabProps> = ({
   highlightDriverId = null,
   onClearHighlight,
 }) => {
-  const { isAdmin, hasPermission, vehicleTypes, logAction } = useAdmin();
+  const { isAdmin, hasPermission, vehicleTypes, globalSettings, logAction } = useAdmin();
 
   const [drivers, setDrivers] = useState<any[]>([]);
   const [driversLastDoc, setDriversLastDoc] = useState<any>(null);
   const [driversHasMore, setDriversHasMore] = useState(true);
   const [driversLoading, setDriversLoading] = useState(false);
   const [driversLoadingMore, setDriversLoadingMore] = useState(false);
+  const [syncingSubscription, setSyncingSubscription] = useState(false);
   const [driverFilterStatus, setDriverFilterStatus] = useState<string>(initialFilterStatus);
   const [searchQuery, setSearchQuery] = useState('');
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
@@ -312,11 +314,28 @@ export const DriversTab: React.FC<DriversTabProps> = ({
     setEditingDriverId(null);
   };
 
+  const handleSyncSubscriptions = async () => {
+    setSyncingSubscription(true);
+    try {
+      const res = await syncDriversSubscriptionStatus(vehicleTypes, globalSettings?.allVehiclesFree);
+      await fetchDrivers(false);
+      alert(
+        `✓ সাবস্ক্রিপশন সিঙ্ক সম্পন্ন হয়েছে!\n\n• মোট গাড়ি: ${res.totalDrivers} জন\n• অ্যাপ/ওয়েবে মেয়াদোত্তীর্ণ ও পেমেন্টহীন হাইড করা হয়েছে: ${res.deactivatedExpired} টি\n• ফ্রি মোডে সচল করা হয়েছে: ${res.reactivatedFree} টি\n\nঅ্যাপ এবং ওয়েবসাইটে এক্সপায়ার্ড গাড়ি আর প্রদর্শিত হবে না।`
+      );
+    } catch (e) {
+      console.error('Error syncing subscriptions:', e);
+      alert('সিঙ্ক করতে সমস্যা হয়েছে।');
+    } finally {
+      setSyncingSubscription(false);
+    }
+  };
+
   const saveEditedDriver = async (id: string) => {
     try {
       setSavingEdit(true);
       const vType = vehicleTypes.find((v) => v.name === editDriverForm.vehicleType);
-      const isUnlimited = vType && vType.monthlyFee === 0;
+      const isAllFree = globalSettings?.allVehiclesFree === true;
+      const isUnlimited = isAllFree || (vType && Number(vType.monthlyFee || 0) === 0);
 
       const currentDriver = drivers.find((d) => d.id === id);
       let newExpiryDate = currentDriver?.expiryDate;
@@ -329,14 +348,35 @@ export const DriversTab: React.FC<DriversTabProps> = ({
         if (isUnlimited && !wasUnlimited) {
           newExpiryDate = new Date('2099-12-31');
         } else if (!isUnlimited && wasUnlimited) {
-          newExpiryDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+          newExpiryDate = new Date();
         }
       }
+
+      // Check if expired
+      let isExpired = false;
+      if (!isUnlimited) {
+        if (newExpiryDate?.toDate) {
+          const expTime = newExpiryDate.toDate().getTime();
+          isExpired = expTime <= Date.now() || newExpiryDate.toDate().getFullYear() > 2090;
+        } else if (newExpiryDate) {
+          const expTime = new Date(newExpiryDate).getTime();
+          isExpired = isNaN(expTime) || expTime <= Date.now();
+        } else {
+          isExpired = true;
+        }
+      }
+
+      // Enforce isActive: false in Firestore if subscription is expired so car won't show in app/web
+      const finalIsActive = isUnlimited
+        ? (editDriverForm.isActive ?? true)
+        : (!isExpired && (editDriverForm.isActive ?? true));
 
       await setDoc(
         doc(db, 'drivers', id),
         {
           ...editDriverForm,
+          isActive: finalIsActive,
+          subscriptionStatus: isExpired ? 'expired' : 'active',
           expiryDate: newExpiryDate,
           updatedAt: serverTimestamp(),
         },
@@ -345,7 +385,9 @@ export const DriversTab: React.FC<DriversTabProps> = ({
 
       setDrivers(
         drivers.map((d) =>
-          d.id === id ? { ...d, ...editDriverForm, expiryDate: newExpiryDate } : d
+          d.id === id
+            ? { ...d, ...editDriverForm, isActive: finalIsActive, expiryDate: newExpiryDate, subscriptionStatus: isExpired ? 'expired' : 'active' }
+            : d
         )
       );
       setEditingDriverId(null);
@@ -433,8 +475,9 @@ export const DriversTab: React.FC<DriversTabProps> = ({
     if (!driver?.id) return;
     try {
       setApprovingDriverId(driver.id);
-      const vType = vehicleTypes.find((v) => v.name === driver.vehicleType);
-      const isUnlimited = vType && vType.monthlyFee === 0;
+      const isAllFree = globalSettings?.allVehiclesFree === true;
+      const matchedType = vehicleTypes.find((v) => v.name === driver.vehicleType || v.bnName === driver.vehicleType);
+      const isUnlimited = isAllFree || (matchedType && Number(matchedType.monthlyFee || 0) === 0);
       const newExpiry = isUnlimited
         ? new Date('2099-12-31')
         : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
@@ -445,6 +488,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
         {
           isActive: true,
           status: 'approved',
+          subscriptionStatus: 'active',
           expiryDate: newExpiry,
           approvedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -897,6 +941,20 @@ export const DriversTab: React.FC<DriversTabProps> = ({
             >
               <RefreshCw size={15} className={cn(driversLoading && 'animate-spin text-primary')} />
             </button>
+
+            {/* Sync Subscriptions to Firestore (hides expired from app/web) */}
+            {(isAdmin || hasPermission('drivers')) && (
+              <button
+                type="button"
+                onClick={handleSyncSubscriptions}
+                disabled={syncingSubscription || driversLoading}
+                title="অ্যাপ ও ওয়েবসাইটে মেয়াদোত্তীর্ণ গাড়ি হাইড করার জন্য ড্রাইভার সাবস্ক্রিপশন সিঙ্ক করুন"
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold text-gray-700 hover:text-primary hover:border-primary/40 transition-all shadow-2xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={cn('text-primary', syncingSubscription && 'animate-spin')} />
+                <span className="hidden sm:inline">{syncingSubscription ? 'সিঙ্ক হচ্ছে...' : 'সাবস্ক্রিপশন সিঙ্ক'}</span>
+              </button>
+            )}
 
             {/* View Mode Toggle (Table / Card Grid) */}
             <div className="flex items-center bg-gray-100 p-0.5 rounded-xl border border-gray-200 shrink-0">

@@ -2,9 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updatePassword } from 'firebase/auth';
-import { Settings, ShieldCheck, MessageCircle, ToggleLeft, ToggleRight, Palette, Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Settings,
+  ShieldCheck,
+  MessageCircle,
+  ToggleLeft,
+  ToggleRight,
+  Palette,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Volume2,
+  Phone,
+  Mail,
+  MapPin,
+  Globe,
+  Sparkles,
+  ExternalLink,
+} from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import { cn } from '../../lib/utils';
+import { playNotificationSound } from '../../lib/notificationSound';
+import toast from 'react-hot-toast';
 
 export const SettingsTab: React.FC = () => {
   const { user, profile, isAdmin, hasPermission, globalSettings, setGlobalSettings, logAction } = useAdmin();
@@ -16,6 +35,19 @@ export const SettingsTab: React.FC = () => {
   const [requirePaymentOnRegistration, setRequirePaymentOnRegistration] = useState(
     globalSettings.requirePaymentOnRegistration ?? false
   );
+
+  // Sync toggles when globalSettings updates
+  useEffect(() => {
+    if (globalSettings.registrationEnabled !== undefined) {
+      setRegistrationEnabled(globalSettings.registrationEnabled);
+    }
+    if (globalSettings.addEntryEnabled !== undefined) {
+      setAddEntryEnabled(globalSettings.addEntryEnabled);
+    }
+    if (globalSettings.requirePaymentOnRegistration !== undefined) {
+      setRequirePaymentOnRegistration(globalSettings.requirePaymentOnRegistration);
+    }
+  }, [globalSettings.registrationEnabled, globalSettings.addEntryEnabled, globalSettings.requirePaymentOnRegistration]);
 
   // Password state
   const [newPassword, setNewPassword] = useState('');
@@ -52,24 +84,58 @@ export const SettingsTab: React.FC = () => {
     }
   }, [isAdmin, hasPermission]);
 
+  const handleUpdateContactField = (field: 'phone' | 'email' | 'address', value: string) => {
+    setGlobalSettings((prev) => {
+      const updated = { ...prev };
+      if (field === 'phone') {
+        updated.contactPhone = value;
+        updated.phone = value;
+      } else if (field === 'email') {
+        updated.contactEmail = value;
+        updated.email = value;
+      } else if (field === 'address') {
+        updated.contactAddress = value;
+        updated.address = value;
+      }
+      return updated;
+    });
+  };
+
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await setDoc(
-        doc(db, 'settings', 'global'),
-        {
-          ...globalSettings,
-          registrationEnabled,
-          addEntryEnabled,
-          requirePaymentOnRegistration,
-        },
-        { merge: true }
-      );
-      await logAction('UPDATE_SETTINGS', 'Updated global site settings');
-      alert('Settings saved successfully!');
+      const phoneVal = (globalSettings.contactPhone || globalSettings.phone || '').trim();
+      const emailVal = (globalSettings.contactEmail || globalSettings.email || '').trim();
+      const addressVal = (globalSettings.contactAddress || globalSettings.address || '').trim();
+
+      const payload = {
+        ...globalSettings,
+        contactPhone: phoneVal,
+        phone: phoneVal,
+        contactEmail: emailVal,
+        email: emailVal,
+        contactAddress: addressVal,
+        address: addressVal,
+        privacyPolicyBn: '',
+        privacyPolicyEn: '',
+        privacyPolicy: '',
+        termsConditionsBn: '',
+        termsConditionsEn: '',
+        aboutUsBn: '',
+        aboutUsEn: '',
+        registrationEnabled,
+        addEntryEnabled,
+        requirePaymentOnRegistration,
+      };
+
+      await setDoc(doc(db, 'settings', 'global'), payload, { merge: true });
+      await logAction('UPDATE_SETTINGS', 'Updated global site settings & helpline contacts');
+      toast.success('যোগাযোগ ও সেটিংস সফলভাবে সেভ করা হয়েছে! রিয়েল-টাইমে আপডেট কার্যকর হয়েছে।', {
+        duration: 4000,
+      });
     } catch (err) {
       console.error('Error saving settings:', err);
-      alert('Failed to save settings.');
+      toast.error('সেটিংস সেভ করতে সমস্যা হয়েছে।');
     } finally {
       setSaving(false);
     }
@@ -164,26 +230,46 @@ export const SettingsTab: React.FC = () => {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100 gap-3">
             <div>
-              <h3 className="font-bold text-gray-900 text-sm">Notification Sound</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Audible chime on receiving incoming notices.</p>
+              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                <Volume2 size={16} className="text-primary" />
+                <span>Notification Sound</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">Audible chime on receiving incoming notices & registrations.</p>
             </div>
-            <button
-              onClick={async () => {
-                if (user) {
-                  const newStatus = !(profile?.notificationSoundEnabled ?? true);
-                  await setDoc(doc(db, 'users', user.uid), { notificationSoundEnabled: newStatus }, { merge: true });
-                }
-              }}
-              className="text-primary transition-transform active:scale-95"
-            >
-              {(profile?.notificationSoundEnabled ?? true) ? (
-                <ToggleRight size={44} />
-              ) : (
-                <ToggleLeft size={44} className="text-gray-300" />
-              )}
-            </button>
+            <div className="flex items-center gap-2.5 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  playNotificationSound();
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-2xs flex items-center gap-1.5 transition-all active:scale-95"
+                title="সাউন্ড টেস্ট করুন (Play Chime)"
+              >
+                <Volume2 size={14} className="text-primary" />
+                <span>শব্দ টেস্ট করুন</span>
+              </button>
+              <button
+                onClick={async () => {
+                  if (user) {
+                    const newStatus = !(profile?.notificationSoundEnabled ?? true);
+                    await setDoc(doc(db, 'users', user.uid), { notificationSoundEnabled: newStatus }, { merge: true });
+                    if (newStatus) {
+                      playNotificationSound();
+                    }
+                  }
+                }}
+                className="text-primary transition-transform active:scale-95"
+                title={(profile?.notificationSoundEnabled ?? true) ? 'Disable Sound' : 'Enable Sound'}
+              >
+                {(profile?.notificationSoundEnabled ?? true) ? (
+                  <ToggleRight size={44} />
+                ) : (
+                  <ToggleLeft size={44} className="text-gray-300" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100">
@@ -214,12 +300,187 @@ export const SettingsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Global Settings (Admin Only) */}
-      {isAdmin && (
+      {/* Dynamic Helpline & Contact Information */}
+      {(isAdmin || hasPermission('settings')) && (
+        <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-5">
+            <div>
+              <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <Phone className="text-primary" size={22} />
+                <span>হেল্পলাইন ও যোগাযোগের তথ্য (Helpline & Contacts)</span>
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                এখানে ফোন নম্বর, ইমেইল বা ঠিকানা পরিবর্তন করার সাথে সাথেই মোবাইল অ্যাপ ও ওয়েবসাইটের ফুটার এবং কল বাটনে রিয়েল-টাইমে আপডেট হয়ে যাবে।
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100 self-start sm:self-auto">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>রিয়েল-টাইম সিঙ্ক সক্রিয়</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Site Title */}
+              <div className="sm:col-span-2 flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>সাইটের নাম / ব্র্যান্ড টাইটেল (Site Title)</span>
+                  <span className="text-[10px] text-gray-400 font-normal">siteTitle</span>
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={globalSettings.siteTitle || ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, siteTitle: e.target.value })}
+                    placeholder="JOTPOT - ঝটপট"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-gray-900"
+                  />
+                </div>
+              </div>
+
+              {/* Helpline Phone */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>হেল্পলাইন ফোন নম্বর (Phone)</span>
+                  <span className="text-[10px] text-primary font-mono font-bold">contactPhone</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={globalSettings.contactPhone || globalSettings.phone || ''}
+                    onChange={(e) => handleUpdateContactField('phone', e.target.value)}
+                    placeholder="01677234252"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-gray-900 font-mono"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  ফুটারের হেল্পলাইন ও নিচের ডানদিকের ফ্লোটিং কল/চ্যাট বাটনে এই নম্বরে ডায়াল হবে।
+                </p>
+              </div>
+
+              {/* Support Email */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>অফিশিয়াল সাপোর্ট ইমেইল (Email)</span>
+                  <span className="text-[10px] text-primary font-mono font-bold">contactEmail</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="email"
+                    value={globalSettings.contactEmail || globalSettings.email || ''}
+                    onChange={(e) => handleUpdateContactField('email', e.target.value)}
+                    placeholder="support@jotpot.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-gray-900 font-mono"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  মোবাইল অ্যাপ ও ওয়েবসাইটের ফুটারে সাপোর্ট ইমেইল হিসেবে প্রদর্শিত হবে।
+                </p>
+              </div>
+
+              {/* Office Address */}
+              <div className="sm:col-span-2 flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>অফিস ঠিকানা (Contact Address)</span>
+                  <span className="text-[10px] text-primary font-mono font-bold">contactAddress</span>
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={globalSettings.contactAddress || globalSettings.address || ''}
+                    onChange={(e) => handleUpdateContactField('address', e.target.value)}
+                    placeholder="Tangail / Dhaka, Bangladesh"
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-gray-900"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  অ্যাপ ও ওয়েবসাইটের ফুটারে অফিস বা প্রধান কার্যালয় হিসেবে দেখাবে।
+                </p>
+              </div>
+            </div>
+
+            {/* Live Mobile/Web Visual Mockup */}
+            <div className="bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800 text-white rounded-2xl p-5 flex flex-col justify-between shadow-md border border-gray-700">
+              <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="text-amber-400" size={16} />
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-300">লাইভ ডিসপ্লে প্রিভিউ</span>
+                </div>
+                <span className="text-[10px] bg-primary/20 text-orange-300 px-2.5 py-0.5 rounded-full font-bold">
+                  App & Web
+                </span>
+              </div>
+
+              <div className="py-4 flex flex-col gap-3.5">
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1.5">
+                    📱 অ্যাপ ফুটারে যেভাবে দেখাবে:
+                  </div>
+                  <div className="p-3 bg-gray-900/90 rounded-xl border border-gray-700/80 space-y-2 text-xs">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold">
+                      <Phone size={14} className="shrink-0 text-amber-400" />
+                      <span className="truncate">{globalSettings.contactPhone || globalSettings.phone || '01677234252'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-300">
+                      <Mail size={14} className="shrink-0 text-gray-400" />
+                      <span className="truncate">{globalSettings.contactEmail || globalSettings.email || 'support@jotpot.com'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-300">
+                      <MapPin size={14} className="shrink-0 text-gray-400" />
+                      <span className="truncate">{globalSettings.contactAddress || globalSettings.address || 'Tangail / Dhaka, Bangladesh'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1.5">
+                    🔘 নিচের ডানদিকের কল বাটন (FAB):
+                  </div>
+                  <div className="flex items-center gap-3 p-2.5 bg-primary/15 rounded-xl border border-primary/30 text-xs">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white shrink-0 shadow-sm animate-bounce">
+                      <Phone size={14} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-gray-300">ইউজার ক্লিক করলে ডায়াল হবে:</span>
+                      <span className="text-xs font-bold text-white font-mono">
+                        {globalSettings.contactPhone || globalSettings.phone || '01677234252'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
+                <span>Firestore: <code>settings/global</code></span>
+                <span className="text-emerald-400 font-bold">✓ সিঙ্ক সক্রিয়</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-gray-100">
+            <button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="bg-primary text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:opacity-90 transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
+            >
+              <Save size={15} />
+              <span>{saving ? 'সেভ হচ্ছে...' : 'যোগাযোগ তথ্য সেভ করুন (Save Contacts)'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* Global App Configuration (Feature Toggles, Gateway, Banner, Discounts) */}
+      {(isAdmin || hasPermission('settings')) && (
         <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 flex flex-col gap-6">
           <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
             <Settings size={22} className="text-primary" />
-            <span>Global App Configuration</span>
+            <span>সিস্টেম কনফিগারেশন (System & Gateway Configuration)</span>
           </h2>
 
           {/* Maintenance Mode */}
@@ -313,46 +574,6 @@ export const SettingsTab: React.FC = () => {
                   <ToggleLeft size={40} className="text-gray-300" />
                 )}
               </button>
-            </div>
-          </div>
-
-          {/* General Metadata */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Site Title</label>
-              <input
-                type="text"
-                value={globalSettings.siteTitle}
-                onChange={(e) => setGlobalSettings({ ...globalSettings, siteTitle: e.target.value })}
-                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Contact Email</label>
-              <input
-                type="email"
-                value={globalSettings.contactEmail}
-                onChange={(e) => setGlobalSettings({ ...globalSettings, contactEmail: e.target.value })}
-                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Contact Phone</label>
-              <input
-                type="text"
-                value={globalSettings.contactPhone}
-                onChange={(e) => setGlobalSettings({ ...globalSettings, contactPhone: e.target.value })}
-                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Office Address</label>
-              <input
-                type="text"
-                value={globalSettings.address}
-                onChange={(e) => setGlobalSettings({ ...globalSettings, address: e.target.value })}
-                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
-              />
             </div>
           </div>
 
