@@ -97,6 +97,7 @@ export const VehicleTypesTab: React.FC = () => {
     vehicleTypes,
     refreshVehicleTypes,
     refreshGlobalSettings,
+    globalSettings,
     logAction,
   } = useAdmin();
 
@@ -105,12 +106,31 @@ export const VehicleTypesTab: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'free' | 'paid' | 'active' | 'hidden'>('all');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
+  // Rate calculator helper
+  const getVehicleRates = (v: any) => {
+    const monthly = Number(v.monthlyFee || 0);
+    if (monthly === 0) {
+      return { monthly: 0, sixMonths: 0, yearly: 0, isFree: true };
+    }
+    const d6 = Number(globalSettings?.discount6Months || 0);
+    const d1y = Number(globalSettings?.discount1Year || 0);
+    const sixMonths = v.fee6Months !== undefined && v.fee6Months !== null && v.fee6Months !== 0
+      ? Number(v.fee6Months)
+      : Math.round(monthly * 6 * (1 - d6 / 100));
+    const yearly = v.feeYearly !== undefined && v.feeYearly !== null && v.feeYearly !== 0
+      ? Number(v.feeYearly)
+      : Math.round(monthly * 12 * (1 - d1y / 100));
+    return { monthly, sixMonths, yearly, isFree: false };
+  };
+
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     name: '',
     bnName: '',
     monthlyFee: 0,
+    fee6Months: 0,
+    feeYearly: 0,
     discountType: 'percentage',
     discountValue: 0,
   });
@@ -120,6 +140,8 @@ export const VehicleTypesTab: React.FC = () => {
     name: '',
     bnName: '',
     monthlyFee: 0,
+    fee6Months: 0,
+    feeYearly: 0,
     discountType: 'percentage',
     discountValue: 0,
   });
@@ -191,8 +213,21 @@ export const VehicleTypesTab: React.FC = () => {
     try {
       const updatedTypes: any[] = [];
       for (const v of vehicleTypes) {
-        await updateVehicleBoth(v.id, { monthlyFee: 0 });
-        updatedTypes.push({ ...v, monthlyFee: 0 });
+        await updateVehicleBoth(v.id, {
+          monthlyFee: 0,
+          fee6Months: 0,
+          feeYearly: 0,
+          sixMonthFee: 0,
+          yearlyFee: 0,
+        });
+        updatedTypes.push({
+          ...v,
+          monthlyFee: 0,
+          fee6Months: 0,
+          feeYearly: 0,
+          sixMonthFee: 0,
+          yearlyFee: 0,
+        });
       }
 
       await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: true }, { merge: true });
@@ -221,11 +256,28 @@ export const VehicleTypesTab: React.FC = () => {
     setPricingActionLoading(true);
     try {
       const updatedTypes: any[] = [];
+      const d6 = Number(globalSettings?.discount6Months || 0);
+      const d1y = Number(globalSettings?.discount1Year || 0);
       for (const v of vehicleTypes) {
         const key = (v.name || '').trim().toLowerCase();
         const stdFee = STANDARD_FEES[key] !== undefined ? STANDARD_FEES[key] : (Number(v.monthlyFee) || 100);
-        await updateVehicleBoth(v.id, { monthlyFee: stdFee });
-        updatedTypes.push({ ...v, monthlyFee: stdFee });
+        const f6 = Math.round(stdFee * 6 * (1 - d6 / 100));
+        const fY = Math.round(stdFee * 12 * (1 - d1y / 100));
+        await updateVehicleBoth(v.id, {
+          monthlyFee: stdFee,
+          fee6Months: f6,
+          feeYearly: fY,
+          sixMonthFee: f6,
+          yearlyFee: fY,
+        });
+        updatedTypes.push({
+          ...v,
+          monthlyFee: stdFee,
+          fee6Months: f6,
+          feeYearly: fY,
+          sixMonthFee: f6,
+          yearlyFee: fY,
+        });
       }
 
       await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: false }, { merge: true });
@@ -250,9 +302,19 @@ export const VehicleTypesTab: React.FC = () => {
     const newFee = isCurrentlyFree
       ? STANDARD_FEES[key] !== undefined ? STANDARD_FEES[key] : 100
       : 0;
+    const d6 = Number(globalSettings?.discount6Months || 0);
+    const d1y = Number(globalSettings?.discount1Year || 0);
+    const f6 = newFee > 0 ? Math.round(newFee * 6 * (1 - d6 / 100)) : 0;
+    const fY = newFee > 0 ? Math.round(newFee * 12 * (1 - d1y / 100)) : 0;
 
     try {
-      await updateVehicleBoth(v.id, { monthlyFee: newFee });
+      await updateVehicleBoth(v.id, {
+        monthlyFee: newFee,
+        fee6Months: f6,
+        feeYearly: fY,
+        sixMonthFee: f6,
+        yearlyFee: fY,
+      });
       await refreshVehicleTypes();
       await syncDriversSubscriptionStatus();
       await logAction('toggle_single_free', `Changed fee for ${v.name} to ৳${newFee}`);
@@ -264,9 +326,20 @@ export const VehicleTypesTab: React.FC = () => {
   const handleSeedVehicles = async () => {
     setSeedingVehicles(true);
     try {
+      const d6 = Number(globalSettings?.discount6Months || 0);
+      const d1y = Number(globalSettings?.discount1Year || 0);
       for (const v of defaultVehicles) {
         if (!vehicleTypes.some((existing) => existing.name.toLowerCase() === v.name.toLowerCase())) {
-          await addVehicleBoth({ ...v, isVisible: true });
+          const f6 = v.monthlyFee > 0 ? Math.round(v.monthlyFee * 6 * (1 - d6 / 100)) : 0;
+          const fY = v.monthlyFee > 0 ? Math.round(v.monthlyFee * 12 * (1 - d1y / 100)) : 0;
+          await addVehicleBoth({
+            ...v,
+            fee6Months: f6,
+            feeYearly: fY,
+            sixMonthFee: f6,
+            yearlyFee: fY,
+            isVisible: true,
+          });
         }
       }
       await refreshVehicleTypes();
@@ -283,9 +356,33 @@ export const VehicleTypesTab: React.FC = () => {
     e.preventDefault();
     if (!newVehicle.name || !newVehicle.bnName) return;
     try {
-      await addVehicleBoth({ ...newVehicle, isVisible: true });
+      const monthly = Number(newVehicle.monthlyFee) || 0;
+      const d6 = Number(globalSettings?.discount6Months || 0);
+      const d1y = Number(globalSettings?.discount1Year || 0);
+      const fee6 = monthly > 0 ? (newVehicle.fee6Months ? Number(newVehicle.fee6Months) : Math.round(monthly * 6 * (1 - d6 / 100))) : 0;
+      const feeY = monthly > 0 ? (newVehicle.feeYearly ? Number(newVehicle.feeYearly) : Math.round(monthly * 12 * (1 - d1y / 100))) : 0;
+
+      const payload = {
+        ...newVehicle,
+        monthlyFee: monthly,
+        fee6Months: fee6,
+        feeYearly: feeY,
+        sixMonthFee: fee6,
+        yearlyFee: feeY,
+        isVisible: true,
+      };
+
+      await addVehicleBoth(payload);
       await refreshVehicleTypes();
-      setNewVehicle({ name: '', bnName: '', monthlyFee: 0, discountType: 'percentage', discountValue: 0 });
+      setNewVehicle({
+        name: '',
+        bnName: '',
+        monthlyFee: 0,
+        fee6Months: 0,
+        feeYearly: 0,
+        discountType: 'percentage',
+        discountValue: 0,
+      });
       setIsAddModalOpen(false);
       await logAction('add_vehicle_type', `Added vehicle type ${newVehicle.name}`);
     } catch (err) {
@@ -303,11 +400,14 @@ export const VehicleTypesTab: React.FC = () => {
   };
 
   const startEditingVehicle = (v: any) => {
+    const rates = getVehicleRates(v);
     setEditingVehicle(v);
     setEditVehicleForm({
       name: v.name || '',
       bnName: v.bnName || '',
-      monthlyFee: v.monthlyFee ?? 0,
+      monthlyFee: rates.monthly,
+      fee6Months: v.fee6Months !== undefined && v.fee6Months !== null ? Number(v.fee6Months) : (rates.isFree ? 0 : rates.sixMonths),
+      feeYearly: v.feeYearly !== undefined && v.feeYearly !== null ? Number(v.feeYearly) : (rates.isFree ? 0 : rates.yearly),
       discountType: v.discountType || 'percentage',
       discountValue: v.discountValue || 0,
     });
@@ -317,7 +417,22 @@ export const VehicleTypesTab: React.FC = () => {
     e.preventDefault();
     if (!editingVehicle) return;
     try {
-      await updateVehicleBoth(editingVehicle.id, editVehicleForm);
+      const monthly = Number(editVehicleForm.monthlyFee) || 0;
+      const d6 = Number(globalSettings?.discount6Months || 0);
+      const d1y = Number(globalSettings?.discount1Year || 0);
+      const fee6 = monthly > 0 ? (editVehicleForm.fee6Months ? Number(editVehicleForm.fee6Months) : Math.round(monthly * 6 * (1 - d6 / 100))) : 0;
+      const feeY = monthly > 0 ? (editVehicleForm.feeYearly ? Number(editVehicleForm.feeYearly) : Math.round(monthly * 12 * (1 - d1y / 100))) : 0;
+
+      const payload = {
+        ...editVehicleForm,
+        monthlyFee: monthly,
+        fee6Months: fee6,
+        feeYearly: feeY,
+        sixMonthFee: fee6,
+        yearlyFee: feeY,
+      };
+
+      await updateVehicleBoth(editingVehicle.id, payload);
       setEditingVehicle(null);
       await refreshVehicleTypes();
       await syncDriversSubscriptionStatus();
@@ -658,7 +773,7 @@ export const VehicleTypesTab: React.FC = () => {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/40 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                   <th className="py-3 px-6">গাড়ির নাম ও বিবরণ</th>
-                  <th className="py-3 px-6">মাসিক ফি (Monthly Fee)</th>
+                  <th className="py-3 px-6">সাবস্ক্রিপশন রেট (মাসিক / ৬ মাস / ১ বছর)</th>
                   <th className="py-3 px-6">ফ্রি সুইচ</th>
                   <th className="py-3 px-6">স্ট্যাটাস</th>
                   <th className="py-3 px-6 text-right">অ্যাকশন</th>
@@ -666,7 +781,8 @@ export const VehicleTypesTab: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredVehicles.map((v) => {
-                  const isFree = Number(v.monthlyFee || 0) === 0;
+                  const rates = getVehicleRates(v);
+                  const isFree = rates.isFree;
                   const isVisible = v.isVisible !== false;
 
                   return (
@@ -705,18 +821,36 @@ export const VehicleTypesTab: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Fee Badge */}
+                      {/* Rates Breakdown */}
                       <td className="py-3.5 px-6">
                         {isFree ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-xl shadow-2xs">
-                            <Sparkles size={12} />
-                            ফ্রি (৳০/মাস)
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black text-gray-900 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-xl font-mono">
-                              ৳{v.monthlyFee}/মাস
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-xl shadow-2xs w-fit">
+                              <Sparkles size={12} />
+                              সম্পূর্ণ ফ্রি (৳০)
                             </span>
+                            <span className="text-[10px] text-emerald-600 font-medium">কোনো চার্জ বা ফি নেই</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1 py-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-gray-500 w-14">মাসিক:</span>
+                              <span className="text-xs font-black text-gray-900 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-md font-mono">
+                                ৳{rates.monthly}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-gray-500 w-14">৬ মাস:</span>
+                              <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md font-mono">
+                                ৳{rates.sixMonths}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-gray-500 w-14">বাৎসরিক:</span>
+                              <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md font-mono">
+                                ৳{rates.yearly}
+                              </span>
+                            </div>
                           </div>
                         )}
                       </td>
@@ -801,7 +935,8 @@ export const VehicleTypesTab: React.FC = () => {
           /* GRID VIEW (Inside the same unified box, without clutter) */
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredVehicles.map((v) => {
-              const isFree = Number(v.monthlyFee || 0) === 0;
+              const rates = getVehicleRates(v);
+              const isFree = rates.isFree;
               const isVisible = v.isVisible !== false;
 
               return (
@@ -828,12 +963,18 @@ export const VehicleTypesTab: React.FC = () => {
                     {isFree ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg">
                         <Sparkles size={11} />
-                        ফ্রি (৳০)
+                        সম্পূর্ণ ফ্রি (৳০)
                       </span>
                     ) : (
-                      <span className="text-xs font-black text-gray-900 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-lg font-mono">
-                        ৳{v.monthlyFee}/মাস
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-xs font-black text-gray-900 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-lg font-mono">
+                          ৳{rates.monthly} <span className="text-[10px] text-gray-500 font-normal">/ মাস</span>
+                        </span>
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-gray-600">
+                          <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">৬ মাস: ৳{rates.sixMonths}</span>
+                          <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">১ বছর: ৳{rates.yearly}</span>
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -958,28 +1099,75 @@ export const VehicleTypesTab: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Monthly Fee (৳) *
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    মাসিক ফি (৳) *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setNewVehicle({ ...newVehicle, monthlyFee: 0 })}
-                    className="text-[11px] font-bold text-emerald-600 hover:underline"
-                  >
-                    ফ্রি করতে চান? (৳০ সেট করুন)
-                  </button>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={newVehicle.monthlyFee}
+                    onChange={(e) => {
+                      const m = Number(e.target.value) || 0;
+                      const d6 = Number(globalSettings?.discount6Months || 0);
+                      const d1y = Number(globalSettings?.discount1Year || 0);
+                      setNewVehicle({
+                        ...newVehicle,
+                        monthlyFee: m,
+                        fee6Months: m > 0 ? Math.round(m * 6 * (1 - d6 / 100)) : 0,
+                        feeYearly: m > 0 ? Math.round(m * 12 * (1 - d1y / 100)) : 0,
+                      });
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                    placeholder="0"
+                  />
                 </div>
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  value={newVehicle.monthlyFee}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, monthlyFee: Number(e.target.value) })}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono"
-                  placeholder="0"
-                />
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    ৬ মাসের ফি (৳)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newVehicle.fee6Months}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, fee6Months: Number(e.target.value) })}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                    placeholder="Auto or Custom"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    বাৎসরিক ফি (৳)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newVehicle.feeYearly}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, feeYearly: Number(e.target.value) })}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                    placeholder="Auto or Custom"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+                <span className="text-gray-600 font-medium">এই গাড়িটি কি সম্পূর্ণ ফ্রি করতে চান?</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNewVehicle({
+                      ...newVehicle,
+                      monthlyFee: 0,
+                      fee6Months: 0,
+                      feeYearly: 0,
+                    })
+                  }
+                  className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-bold hover:bg-emerald-100 transition-colors"
+                >
+                  ফ্রি করুন (৳০)
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1081,29 +1269,76 @@ export const VehicleTypesTab: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Monthly Fee (৳)
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    মাসিক ফি (৳) *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setEditVehicleForm({ ...editVehicleForm, monthlyFee: 0 })}
-                    className="text-[11px] font-bold text-emerald-600 hover:underline"
-                  >
-                    ফ্রি করুন (৳০)
-                  </button>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={editVehicleForm.monthlyFee}
+                    onChange={(e) => {
+                      const m = Number(e.target.value) || 0;
+                      const d6 = Number(globalSettings?.discount6Months || 0);
+                      const d1y = Number(globalSettings?.discount1Year || 0);
+                      setEditVehicleForm({
+                        ...editVehicleForm,
+                        monthlyFee: m,
+                        fee6Months: m > 0 ? Math.round(m * 6 * (1 - d6 / 100)) : 0,
+                        feeYearly: m > 0 ? Math.round(m * 12 * (1 - d1y / 100)) : 0,
+                      });
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                  />
                 </div>
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  value={editVehicleForm.monthlyFee}
-                  onChange={(e) =>
-                    setEditVehicleForm({ ...editVehicleForm, monthlyFee: Number(e.target.value) })
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    ৬ মাসের ফি (৳)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editVehicleForm.fee6Months}
+                    onChange={(e) =>
+                      setEditVehicleForm({ ...editVehicleForm, fee6Months: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    বাৎসরিক ফি (৳)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editVehicleForm.feeYearly}
+                    onChange={(e) =>
+                      setEditVehicleForm({ ...editVehicleForm, feeYearly: Number(e.target.value) })
+                    }
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+                <span className="text-gray-600 font-medium">এই গাড়িটি কি সম্পূর্ণ ফ্রি করতে চান?</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditVehicleForm({
+                      ...editVehicleForm,
+                      monthlyFee: 0,
+                      fee6Months: 0,
+                      feeYearly: 0,
+                    })
                   }
-                  className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-primary font-mono font-bold"
-                />
+                  className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-bold hover:bg-emerald-100 transition-colors"
+                >
+                  ফ্রি করুন (৳০)
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

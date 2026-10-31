@@ -30,11 +30,63 @@ export const SettingsTab: React.FC = () => {
 
   // Local settings state
   const [saving, setSaving] = useState(false);
+  const [togglingPayment, setTogglingPayment] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(globalSettings.registrationEnabled ?? false);
   const [addEntryEnabled, setAddEntryEnabled] = useState(globalSettings.addEntryEnabled ?? false);
   const [requirePaymentOnRegistration, setRequirePaymentOnRegistration] = useState(
     globalSettings.requirePaymentOnRegistration ?? false
   );
+
+  // Auto-save toggle for Payment Method
+  const handleTogglePaymentMethod = async () => {
+    if (togglingPayment) return;
+    const isAuto = !globalSettings.automatedPayment;
+
+    // 1. Optimistic UI update
+    setGlobalSettings((prev) => ({
+      ...prev,
+      automatedPayment: isAuto,
+      paymentMethod: isAuto ? 'automated' : 'manual',
+      bkashApiEnabled: isAuto,
+    }));
+
+    setTogglingPayment(true);
+    try {
+      const updatePayload: any = {
+        automatedPayment: isAuto,
+        paymentMethod: isAuto ? 'automated' : 'manual',
+        bkashApiEnabled: isAuto,
+        gatewayActive: isAuto,
+        isAutomatedPayment: isAuto,
+        automated_payment: isAuto,
+      };
+
+      await setDoc(doc(db, 'settings', 'global'), updatePayload, { merge: true });
+      await logAction(
+        'TOGGLE_PAYMENT_METHOD',
+        `Switched payment method to ${isAuto ? 'Automated Gateway (bKash Direct API)' : 'Manual Payment'}`
+      );
+
+      toast.success(
+        isAuto
+          ? '✓ স্বয়ংক্রিয় bKash API গেটওয়ে চালু করা হয়েছে! লাইভ অ্যাপে bKash সিস্টেম কানেক্ট হয়েছে।'
+          : '✓ ম্যানুয়াল পেমেন্ট অপশন সক্রিয় করা হয়েছে!',
+        { duration: 4000 }
+      );
+    } catch (err) {
+      console.error('Error saving payment toggle:', err);
+      toast.error('পেমেন্ট স্টেটাস সেভ করতে সমস্যা হয়েছে।');
+      // Revert on error
+      setGlobalSettings((prev) => ({
+        ...prev,
+        automatedPayment: !isAuto,
+        paymentMethod: !isAuto ? 'automated' : 'manual',
+        bkashApiEnabled: !isAuto,
+      }));
+    } finally {
+      setTogglingPayment(false);
+    }
+  };
 
   // Sync toggles when globalSettings updates
   useEffect(() => {
@@ -108,8 +160,26 @@ export const SettingsTab: React.FC = () => {
       const emailVal = (globalSettings.contactEmail || globalSettings.email || '').trim();
       const addressVal = (globalSettings.contactAddress || globalSettings.address || '').trim();
 
+      const isAuto = Boolean(globalSettings.automatedPayment);
       const payload = {
         ...globalSettings,
+        automatedPayment: isAuto,
+        paymentMethod: isAuto ? 'automated' : 'manual',
+        bkashApiEnabled: isAuto,
+        gatewayActive: isAuto,
+        isAutomatedPayment: isAuto,
+        automated_payment: isAuto,
+        paymentGatewayName: globalSettings.paymentGatewayName || 'bkash',
+        paymentGatewayUrl: (globalSettings.paymentGatewayUrl || '').trim(),
+        paymentGatewayStoreId: (globalSettings.paymentGatewayStoreId || '').trim(),
+        paymentGatewaySecret: (globalSettings.paymentGatewaySecret || '').trim(),
+        manualBkashNumber: (globalSettings.manualBkashNumber || '').trim(),
+        manualNagadNumber: (globalSettings.manualNagadNumber || '').trim(),
+        manualRocketNumber: (globalSettings.manualRocketNumber || '').trim(),
+        manualPaymentNumber: (globalSettings.manualPaymentNumber || globalSettings.manualBkashNumber || '').trim(),
+        manualAccountType: globalSettings.manualAccountType || 'Personal',
+        paymentInstructions: (globalSettings.paymentInstructions || globalSettings.manualPaymentInstructions || '').trim(),
+        manualPaymentInstructions: (globalSettings.manualPaymentInstructions || globalSettings.paymentInstructions || '').trim(),
         contactPhone: phoneVal,
         phone: phoneVal,
         contactEmail: emailVal,
@@ -651,70 +721,169 @@ export const SettingsTab: React.FC = () => {
             )}
           </div>
 
-          {/* Payment Gateway Configuration */}
+          {/* Payment Method & Gateway / Manual Payment Configuration */}
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
               <div>
-                <h3 className="font-bold text-gray-900 text-base">Automated Payment Gateway</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Process mobile financial services and card checkouts automatically via API.
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-gray-900 text-base">Payment Method & System (পেমেন্ট পদ্ধতি)</h3>
+                  {globalSettings.automatedPayment ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+                      স্বয়ংক্রিয় গেটওয়ে (bKash API) চালু
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                      ম্যানুয়াল পেমেন্ট নম্বর চালু
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {globalSettings.automatedPayment
+                    ? 'স্বয়ংক্রিয় bKash Direct API বা গেটওয়ে চালু। অ্যাপে ব্যবহারকারী রিনিউ করতে গেলে অটো গেটওয়ে ওপেন হবে, ম্যানুয়াল অপশন বন্ধ থাকবে।'
+                    : 'স্বয়ংক্রিয় গেটওয়ে বন্ধ। অ্যাপে ব্যবহারকারীকে ম্যানুয়াল বিকাশ/নগদ নম্বর দেখানো হবে এবং ব্যবহারকারী টাকা পাঠিয়ে TrxID ও নম্বর সাবমিট করবেন।'}
                 </p>
               </div>
-              <button
-                onClick={() =>
-                  setGlobalSettings({ ...globalSettings, automatedPayment: !globalSettings.automatedPayment })
-                }
-                className="text-primary transition-transform active:scale-95"
-              >
-                {globalSettings.automatedPayment ? (
-                  <ToggleRight size={44} />
-                ) : (
-                  <ToggleLeft size={44} className="text-gray-300" />
-                )}
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-semibold text-gray-600">
+                  {globalSettings.automatedPayment ? 'Automated Gateway' : 'Manual Payment'}
+                </span>
+                <button
+                  type="button"
+                  disabled={togglingPayment}
+                  onClick={handleTogglePaymentMethod}
+                  className="text-primary transition-transform active:scale-95 disabled:opacity-50"
+                  title="Toggle between Automated Gateway and Manual Payment"
+                >
+                  {globalSettings.automatedPayment ? (
+                    <ToggleRight size={44} className="text-primary" />
+                  ) : (
+                    <ToggleLeft size={44} className="text-gray-400" />
+                  )}
+                </button>
+              </div>
             </div>
 
-            {globalSettings.automatedPayment && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Gateway Provider</label>
-                  <select
-                    value={globalSettings.paymentGatewayName}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayName: e.target.value })}
-                    className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
-                  >
-                    <option value="aamarpay">Aamarpay</option>
-                    <option value="sslcommerz">SSLCommerz</option>
-                    <option value="bkash">bKash Direct API</option>
-                    <option value="custom">Custom Webhook API</option>
-                  </select>
+            {/* AUTOMATED GATEWAY CONFIGURATION */}
+            {globalSettings.automatedPayment ? (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+                  <strong>✓ স্বয়ংক্রিয় গেটওয়ে সক্রিয়:</strong> অ্যাপ ও ওয়েবসাইটে ড্রাইভার/ইউজাররা রিনিউ করার সময় সরাসরি পেমেন্ট গেটওয়ের মাধ্যমে পে করবেন। ম্যানুয়াল পেমেন্ট অপশনটি তখন অ্যাপে আর দেখা যাবে না।
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Gateway Endpoint URL</label>
-                  <input
-                    type="url"
-                    value={globalSettings.paymentGatewayUrl}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayUrl: e.target.value })}
-                    placeholder="https://sandbox.aamarpay.com/request.php"
-                    className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Gateway Provider</label>
+                    <select
+                      value={globalSettings.paymentGatewayName || 'bkash'}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayName: e.target.value })}
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                    >
+                      <option value="bkash">bKash Direct API (বিকাশ এপিআই)</option>
+                      <option value="aamarpay">Aamarpay</option>
+                      <option value="sslcommerz">SSLCommerz</option>
+                      <option value="custom">Custom Webhook API</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Gateway Endpoint URL</label>
+                    <input
+                      type="url"
+                      value={globalSettings.paymentGatewayUrl || ''}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayUrl: e.target.value })}
+                      placeholder="https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout/create"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Store ID / App Key</label>
+                    <input
+                      type="text"
+                      value={globalSettings.paymentGatewayStoreId || ''}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayStoreId: e.target.value })}
+                      placeholder="Your bKash App Key / Store ID"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Secret / App Secret Key</label>
+                    <input
+                      type="password"
+                      value={globalSettings.paymentGatewaySecret || ''}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewaySecret: e.target.value })}
+                      placeholder="Your bKash App Secret Key"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Store ID / Merchant Key</label>
-                  <input
-                    type="text"
-                    value={globalSettings.paymentGatewayStoreId}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewayStoreId: e.target.value })}
-                    className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
+              </div>
+            ) : (
+              /* MANUAL PAYMENT CONFIGURATION */
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+                  <strong>ℹ️ ম্যানুয়াল পেমেন্ট সক্রিয়:</strong> অটো গেটওয়ে বন্ধ থাকায় অ্যাপ ও ওয়েবসাইটে ড্রাইভার/ইউজারদের নিচের ম্যানুয়াল বিকাশ বা নগদ নম্বর দেখানো হবে। ইউজার নম্বর দেখে টাকা পাঠাবে এবং তার নম্বর ও TrxID সাবমিট করবে।
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Secret / Signature Key</label>
-                  <input
-                    type="password"
-                    value={globalSettings.paymentGatewaySecret}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, paymentGatewaySecret: e.target.value })}
-                    className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      ম্যানুয়াল বিকাশ নম্বর (bKash)
+                    </label>
+                    <input
+                      type="tel"
+                      value={globalSettings.manualBkashNumber || ''}
+                      onChange={(e) =>
+                        setGlobalSettings({
+                          ...globalSettings,
+                          manualBkashNumber: e.target.value,
+                          manualPaymentNumber: e.target.value,
+                        })
+                      }
+                      placeholder="01XXXXXXXXX"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      ম্যানুয়াল নগদ নম্বর (Nagad)
+                    </label>
+                    <input
+                      type="tel"
+                      value={globalSettings.manualNagadNumber || ''}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, manualNagadNumber: e.target.value })}
+                      placeholder="01XXXXXXXXX"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      অ্যাকাউন্টের ধরণ (Account Type)
+                    </label>
+                    <select
+                      value={globalSettings.manualAccountType || 'Personal'}
+                      onChange={(e) => setGlobalSettings({ ...globalSettings, manualAccountType: e.target.value })}
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                    >
+                      <option value="Personal">Personal (পার্সোনাল - Send Money)</option>
+                      <option value="Merchant">Merchant (মার্চেন্ট - Payment)</option>
+                      <option value="Agent">Agent (এজেন্ট - Cash In)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 mt-3">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    পেমেন্ট নির্দেশনাবলী (Instructions for App Users)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={globalSettings.manualPaymentInstructions || globalSettings.paymentInstructions || ''}
+                    onChange={(e) =>
+                      setGlobalSettings({
+                        ...globalSettings,
+                        manualPaymentInstructions: e.target.value,
+                        paymentInstructions: e.target.value,
+                      })
+                    }
+                    placeholder="যেমন: প্রদত্ত বিকাশ বা নগদ নম্বরে আপনার প্যাকেজ অনুযায়ী টাকা Send Money করুন এবং নিচের ঘরে আপনার প্রেরক নম্বর ও ট্রানজেকশন আইডি দিয়ে সাবমিট করুন।"
+                    className="bg-white border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary text-sm"
                   />
                 </div>
               </div>

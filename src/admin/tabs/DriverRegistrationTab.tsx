@@ -30,6 +30,28 @@ export const DriverRegistrationTab: React.FC = () => {
   const [submittingDriver, setSubmittingDriver] = useState(false);
   const [driverSuccess, setDriverSuccess] = useState(false);
 
+  const selectedVehicleType = vehicleTypes.find((v) => v.name === driverForm.vehicleType);
+  const isAllFree = globalSettings?.allVehiclesFree === true;
+
+  const getVehicleRates = (v: any) => {
+    if (!v) return { monthly: 0, sixMonths: 0, yearly: 0, isFree: true };
+    const monthly = Number(v.monthlyFee || 0);
+    if (monthly === 0 || isAllFree) {
+      return { monthly: 0, sixMonths: 0, yearly: 0, isFree: true };
+    }
+    const d6 = Number(globalSettings?.discount6Months || 0);
+    const d1y = Number(globalSettings?.discount1Year || 0);
+    const sixMonths = v.fee6Months !== undefined && v.fee6Months !== null && v.fee6Months !== 0
+      ? Number(v.fee6Months)
+      : Math.round(monthly * 6 * (1 - d6 / 100));
+    const yearly = v.feeYearly !== undefined && v.feeYearly !== null && v.feeYearly !== 0
+      ? Number(v.feeYearly)
+      : Math.round(monthly * 12 * (1 - d1y / 100));
+    return { monthly, sixMonths, yearly, isFree: false };
+  };
+
+  const vehicleRates = getVehicleRates(selectedVehicleType);
+
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittingDriver(true);
@@ -170,6 +192,59 @@ export const DriverRegistrationTab: React.FC = () => {
               }
             />
           </div>
+
+          {/* Selected Vehicle Rate Card (মাসিক / ৬ মাস / বাৎসরিক অথবা ফ্রি) */}
+          {driverForm.vehicleType && (
+            <div className="mt-3">
+              {!vehicleRates.isFree ? (
+                <div className="p-4 bg-orange-50/70 border border-orange-200 rounded-2xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                        রেজিস্ট্রেশন ফি ও রেট সমূহ ({selectedVehicleType?.name} {selectedVehicleType?.bnName ? `- ${selectedVehicleType.bnName}` : ''})
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        পেইড সার্ভিস
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 bg-white rounded-xl border border-orange-100 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-gray-500 block mb-0.5">মাসিক ফি (১ মাস)</span>
+                      <span className="text-base font-black text-gray-900 font-mono">৳{vehicleRates.monthly}</span>
+                    </div>
+                    <div className="p-3 bg-white rounded-xl border border-blue-100 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-blue-600 block mb-0.5">৬ মাস প্যাকেজ</span>
+                      <span className="text-base font-black text-blue-800 font-mono">৳{vehicleRates.sixMonths}</span>
+                    </div>
+                    <div className="p-3 bg-white rounded-xl border border-purple-100 shadow-2xs">
+                      <span className="text-[11px] font-semibold text-purple-600 block mb-0.5">বাৎসরিক (১ বছর)</span>
+                      <span className="text-base font-black text-purple-800 font-mono">৳{vehicleRates.yearly}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    এই গাড়ির জন্য নির্ধারিত রেট অনুযায়ী সাবস্ক্রিপশন প্রযোজ্য হবে।
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                        ✓ এই গাড়িটি সম্পূর্ণ ফ্রি (Free Vehicle)
+                      </span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                        ৳০ ফি
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      এই গাড়ির জন্য কোনো মাসিক ফি বা পেমেন্ট প্রযোজ্য নয়। রেজিস্ট্রেশনের সাথে সাথে আজীবন/ফ্রি এক্সেস চালু হবে।
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Dynamic vehicle conditional fields */}
@@ -264,18 +339,20 @@ export const DriverRegistrationTab: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="autoPayAdd"
-            checked={driverForm.autoPay}
-            onChange={(e) => setDriverForm({ ...driverForm, autoPay: e.target.checked })}
-            className="w-4 h-4 text-primary rounded focus:ring-primary"
-          />
-          <label htmlFor="autoPayAdd" className="text-sm font-medium text-gray-700 cursor-pointer">
-            Auto Pay via Automated Payment Gateway (অটো পে)
-          </label>
-        </div>
+        {!vehicleRates.isFree && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="autoPayAdd"
+              checked={driverForm.autoPay}
+              onChange={(e) => setDriverForm({ ...driverForm, autoPay: e.target.checked })}
+              className="w-4 h-4 text-primary rounded focus:ring-primary"
+            />
+            <label htmlFor="autoPayAdd" className="text-sm font-medium text-gray-700 cursor-pointer">
+              Auto Pay via Automated Payment Gateway (অটো পে)
+            </label>
+          </div>
+        )}
 
         <div className="flex justify-end pt-2">
           <button

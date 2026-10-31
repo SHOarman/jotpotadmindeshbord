@@ -36,6 +36,11 @@ export interface VehicleType {
   name: string;
   bnName: string;
   monthlyFee: number;
+  fee6Months?: number;
+  feeYearly?: number;
+  sixMonthFee?: number;
+  yearlyFee?: number;
+  fee3Months?: number;
   isVisible: boolean;
   discountType?: 'percentage' | 'amount';
   discountValue?: number;

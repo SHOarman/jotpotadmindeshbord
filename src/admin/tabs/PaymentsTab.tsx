@@ -61,7 +61,14 @@ export const PaymentsTab: React.FC = () => {
         const vType = vehicleTypes.find((v) => v.name === driver.vehicleType);
         if (vType && vType.monthlyFee) {
           const duration = parseInt(paymentForm.durationDays) || 0;
-          const calculatedAmount = Math.round((vType.monthlyFee / 30) * duration);
+          let calculatedAmount = Math.round((vType.monthlyFee / 30) * duration);
+          if (duration === 30) {
+            calculatedAmount = vType.monthlyFee;
+          } else if (duration === 180 && vType.fee6Months) {
+            calculatedAmount = vType.fee6Months;
+          } else if (duration === 365 && vType.feeYearly) {
+            calculatedAmount = vType.feeYearly;
+          }
           setPaymentForm((prev) => ({ ...prev, amount: calculatedAmount.toString() }));
         }
       }

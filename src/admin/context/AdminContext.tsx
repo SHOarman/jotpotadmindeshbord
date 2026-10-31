@@ -20,6 +20,14 @@ interface GlobalSettings {
   secondaryColor: string;
   paymentInstructions: string;
   automatedPayment: boolean;
+  paymentMethod?: 'automated' | 'manual';
+  bkashApiEnabled?: boolean;
+  manualBkashNumber?: string;
+  manualNagadNumber?: string;
+  manualRocketNumber?: string;
+  manualPaymentNumber?: string;
+  manualAccountType?: string;
+  manualPaymentInstructions?: string;
   paymentGatewayName: string;
   paymentGatewayUrl: string;
   paymentGatewayStoreId: string;
@@ -103,6 +111,14 @@ const defaultSettings: GlobalSettings = {
   secondaryColor: '#1a1a1a',
   paymentInstructions: '',
   automatedPayment: false,
+  paymentMethod: 'manual',
+  bkashApiEnabled: false,
+  manualBkashNumber: '',
+  manualNagadNumber: '',
+  manualRocketNumber: '',
+  manualPaymentNumber: '',
+  manualAccountType: 'Personal',
+  manualPaymentInstructions: '',
   paymentGatewayName: 'aamarpay',
   paymentGatewayUrl: '',
   paymentGatewayStoreId: '',
