@@ -63,6 +63,15 @@ interface GlobalSettings {
   termsConditionsEn?: string;
   aboutUsBn?: string;
   aboutUsEn?: string;
+
+  // Dynamic Footer & Policy Titles
+  footerCopyright?: string;
+  footerCopyrightBn?: string;
+  footerCopyrightEn?: string;
+  footerAboutText?: string;
+  privacyPolicyTitleBn?: string;
+  aboutUsTitleBn?: string;
+  termsConditionsTitleBn?: string;
 }
 
 interface AdminContextType {
@@ -136,6 +145,11 @@ const defaultSettings: GlobalSettings = {
   regLiveBannerBgColor: '#dc2626',
   regLiveBannerTextColor: '#ffffff',
   regLiveBannerSpeed: 25,
+  footerCopyright: '© 2026 ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।',
+  footerAboutText: 'ঝটপট হলো বাংলাদেশের সকল জেলার জন্য ভাড়ায় চালিত গাড়ির উন্মুক্ত ডিরেক্টরি। আপনার প্রয়োজনে সহজেই সরাসরি ড্রাইভারের সাথে যোগাযোগ করুন।',
+  privacyPolicyTitleBn: 'গোপনীয়তা নীতি',
+  aboutUsTitleBn: 'আমাদের সম্পর্কে',
+  termsConditionsTitleBn: 'শর্তাবলী ও নিয়মাবলী',
 };
 
 const AdminContext = createContext<AdminContextType | null>(null);

@@ -19,6 +19,9 @@ import {
   Globe,
   Sparkles,
   ExternalLink,
+  FileText,
+  Copyright,
+  BookOpen,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import { cn } from '../../lib/utils';
@@ -186,13 +189,25 @@ export const SettingsTab: React.FC = () => {
         email: emailVal,
         contactAddress: addressVal,
         address: addressVal,
-        privacyPolicyBn: '',
-        privacyPolicyEn: '',
-        privacyPolicy: '',
-        termsConditionsBn: '',
-        termsConditionsEn: '',
-        aboutUsBn: '',
-        aboutUsEn: '',
+        footerCopyright: (globalSettings.footerCopyright || '').trim(),
+        footerCopyrightBn: (globalSettings.footerCopyrightBn || globalSettings.footerCopyright || '').trim(),
+        footerCopyrightEn: (globalSettings.footerCopyrightEn || '').trim(),
+        footerAboutText: (globalSettings.footerAboutText || '').trim(),
+        privacyPolicyTitleBn: (globalSettings.privacyPolicyTitleBn || '').trim(),
+        aboutUsTitleBn: (globalSettings.aboutUsTitleBn || '').trim(),
+        termsConditionsTitleBn: (globalSettings.termsConditionsTitleBn || '').trim(),
+        privacyPolicyBn: (globalSettings.privacyPolicyBn || '').trim(),
+        privacyPolicyEn: (globalSettings.privacyPolicyEn || '').trim(),
+        privacyPolicyCustomBn: (globalSettings.privacyPolicyBn || '').trim(),
+        privacyPolicyCustomEn: (globalSettings.privacyPolicyEn || '').trim(),
+        termsConditionsBn: (globalSettings.termsConditionsBn || '').trim(),
+        termsConditionsEn: (globalSettings.termsConditionsEn || '').trim(),
+        termsConditionsCustomBn: (globalSettings.termsConditionsBn || '').trim(),
+        termsConditionsCustomEn: (globalSettings.termsConditionsEn || '').trim(),
+        aboutUsBn: (globalSettings.aboutUsBn || '').trim(),
+        aboutUsEn: (globalSettings.aboutUsEn || '').trim(),
+        aboutUsCustomBn: (globalSettings.aboutUsBn || '').trim(),
+        aboutUsCustomEn: (globalSettings.aboutUsEn || '').trim(),
         registrationEnabled,
         addEntryEnabled,
         requirePaymentOnRegistration,
@@ -888,6 +903,185 @@ export const SettingsTab: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Policies, Legal & Footer Management (পলিসি, নির্দেশিকা ও ফুটার কন্ট্রোল) */}
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 flex flex-col gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-gray-200 pb-3">
+              <div>
+                <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+                  <FileText className="text-primary" size={20} />
+                  <span>পলিসি, নির্দেশিকা ও ফুটার কন্ট্রোল (Policies & Footer Control)</span>
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  অ্যাপ ও ওয়েবসাইটের ফুটারের গোপনীয়তা নীতি, আমাদের সম্পর্কে, শর্তাবলী এবং নিচের কপিরাইট লেখা এখান থেকেই নিয়ন্ত্রণ করুন।
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">
+                Live Dynamic Footer
+              </span>
+            </div>
+
+            {/* 1. Footer Copyright & About Text */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-4 shadow-2xs">
+              <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                <Copyright size={18} className="text-primary" />
+                <span>ফুটার কপিরাইট ও পরিচিতি বক্তব্য</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    কপিরাইট লেখা (Footer Copyright Text)
+                  </label>
+                  <input
+                    type="text"
+                    value={globalSettings.footerCopyright ?? '© 2026 ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerCopyright: e.target.value })}
+                    placeholder="© 2026 ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    ওয়েবসাইটের একেবারে নিচে ফুটারের মাঝখানে প্রদর্শিত হবে।
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    ফুটার পরিচিতি বক্তব্য (Footer About Description)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={
+                      globalSettings.footerAboutText ??
+                      'ঝটপট হলো বাংলাদেশের সকল জেলার জন্য ভাড়ায় চালিত গাড়ির উন্মুক্ত ডিরেক্টরি। আপনার প্রয়োজনে সহজেই সরাসরি ড্রাইভারের সাথে যোগাযোগ করুন।'
+                    }
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerAboutText: e.target.value })}
+                    placeholder="ফুটারের লোগোর নিচে দেখানো সংক্ষিপ্ত পরিচিতি..."
+                    className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    লোগোর নিচে প্রদর্শিত সংক্ষিপ্ত বর্ণনা।
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Privacy Policy, About Us, Terms & Conditions */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Privacy Policy Card */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <h4 className="text-sm font-bold text-gray-800">১. গোপনীয়তা নীতি (Privacy Policy)</h4>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">ফুটার লিংক টাইটেল</label>
+                  <input
+                    type="text"
+                    value={globalSettings.privacyPolicyTitleBn ?? 'গোপনীয়তা নীতি'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, privacyPolicyTitleBn: e.target.value })}
+                    placeholder="গোপনীয়তা নীতি"
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">কাস্টম নীতিমালার বিবরণ (বাংলা)</label>
+                  <textarea
+                    rows={4}
+                    value={globalSettings.privacyPolicyBn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, privacyPolicyBn: e.target.value })}
+                    placeholder="ফাঁকা রাখলে ডিফল্ট স্ট্রাকচার্ড নীতিমালা দেখানো হবে। আপনি চাইলে এখানে কাস্টম নীতিমালা লিখে দিতে পারেন..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">Policy Content (English)</label>
+                  <textarea
+                    rows={2}
+                    value={globalSettings.privacyPolicyEn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, privacyPolicyEn: e.target.value })}
+                    placeholder="Custom English privacy policy text (optional)..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              {/* About Us Card */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  <h4 className="text-sm font-bold text-gray-800">২. আমাদের সম্পর্কে (About Us)</h4>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">ফুটার লিংক টাইটেল</label>
+                  <input
+                    type="text"
+                    value={globalSettings.aboutUsTitleBn ?? 'আমাদের সম্পর্কে'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, aboutUsTitleBn: e.target.value })}
+                    placeholder="আমাদের সম্পর্কে"
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">পরিচিতি ও লক্ষ্য (বাংলা)</label>
+                  <textarea
+                    rows={4}
+                    value={globalSettings.aboutUsBn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, aboutUsBn: e.target.value })}
+                    placeholder="আমাদের সম্পর্কে কাস্টম পরিচিতি, মিশন ও ভিশন লিখে দিতে পারেন..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">About Us Content (English)</label>
+                  <textarea
+                    rows={2}
+                    value={globalSettings.aboutUsEn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, aboutUsEn: e.target.value })}
+                    placeholder="Custom English about us text (optional)..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Terms & Conditions Card */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <h4 className="text-sm font-bold text-gray-800">৩. শর্তাবলী ও নিয়মাবলী (Terms & Conditions)</h4>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">ফুটার লিংক টাইটেল</label>
+                  <input
+                    type="text"
+                    value={globalSettings.termsConditionsTitleBn ?? 'শর্তাবলী ও নিয়মাবলী'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, termsConditionsTitleBn: e.target.value })}
+                    placeholder="শর্তাবলী ও নিয়মাবলী"
+                    className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">শর্তাবলীর বিবরণ (বাংলা)</label>
+                  <textarea
+                    rows={4}
+                    value={globalSettings.termsConditionsBn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, termsConditionsBn: e.target.value })}
+                    placeholder="ফাঁকা রাখলে ডিফল্ট স্ট্রাকচার্ড শর্তাবলী দেখানো হবে। আপনি চাইলে কাস্টম শর্তাবলী লিখতে পারেন..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-gray-600 uppercase">Terms & Conditions (English)</label>
+                  <textarea
+                    rows={2}
+                    value={globalSettings.termsConditionsEn ?? ''}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, termsConditionsEn: e.target.value })}
+                    placeholder="Custom English terms & conditions (optional)..."
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Subscription Discounts */}
