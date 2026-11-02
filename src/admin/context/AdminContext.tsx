@@ -5,6 +5,7 @@ import { doc, getDoc, getDocs, collection, query, orderBy, limit, onSnapshot, up
 import { UserProfile, Location } from '../../types';
 import { playNotificationSound } from '../../lib/notificationSound';
 import { syncDriversSubscriptionStatus, SyncResult } from '../../lib/subscriptionSync';
+import toast from 'react-hot-toast';
 
 interface GlobalSettings {
   maintenanceMode: boolean;
@@ -302,18 +303,53 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isInitialNotifRef.current = false;
       } else {
         const soundEnabled = profile?.notificationSoundEnabled ?? true;
-        if (soundEnabled) {
-          const hasNewUnread = snap.docChanges().some((change) => {
-            if (change.type === 'added') {
-              const data = change.doc.data();
-              return !data.readBy || !data.readBy.includes(profile?.uid || '');
+        let playedSound = false;
+
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const isUnread = !data.readBy || !data.readBy.includes(profile?.uid || '');
+            if (isUnread) {
+              if (soundEnabled && !playedSound) {
+                playNotificationSound();
+                playedSound = true;
+              }
+              // Pop up real-time notification toast
+              toast(
+                (t) => (
+                  <div
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                    }}
+                    className="flex items-start gap-2.5 cursor-pointer text-left"
+                  >
+                    <span className="text-xl shrink-0 mt-0.5">
+                      {data.type === 'registration' ? '🚗' : '🔔'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 leading-snug">
+                        {data.message || 'নতুন নোটিফিকেশন এসেছে!'}
+                      </p>
+                      <p className="text-[10px] text-primary font-semibold mt-1">
+                        দেখতে নোটিফিকেশন আইকনে ট্যাপ করুন &rarr;
+                      </p>
+                    </div>
+                  </div>
+                ),
+                {
+                  duration: 6000,
+                  style: {
+                    borderRadius: '16px',
+                    background: '#ffffff',
+                    border: '1px solid #fed7aa',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                    padding: '12px',
+                  },
+                }
+              );
             }
-            return false;
-          });
-          if (hasNewUnread) {
-            playNotificationSound();
           }
-        }
+        });
       }
     }, (err) => {
       console.error('Error in notifications listener:', err);
@@ -330,6 +366,21 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (soundEnabled) {
           playNotificationSound();
         }
+        const diff = currentSize - prevPendingCountRef.current;
+        toast(
+          `🚗 ${diff}টি নতুন ড্রাইভার রেজিস্ট্রেশন রিকোয়েস্ট এসেছে!`,
+          {
+            icon: '🔔',
+            duration: 6000,
+            style: {
+              borderRadius: '16px',
+              background: '#0F172A',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: 'bold',
+            },
+          }
+        );
       }
       prevPendingCountRef.current = currentSize;
     }, (err) => {
