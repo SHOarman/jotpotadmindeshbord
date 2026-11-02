@@ -30,7 +30,7 @@ export const DriverRegistrationTab: React.FC = () => {
   const [submittingDriver, setSubmittingDriver] = useState(false);
   const [driverSuccess, setDriverSuccess] = useState(false);
 
-  const selectedVehicleType = vehicleTypes.find((v) => v.name === driverForm.vehicleType);
+  const selectedVehicleType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (driverForm.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (driverForm.vehicleType || '').trim()));
   const isAllFree = globalSettings?.allVehiclesFree === true;
 
   const getVehicleRates = (v: any) => {
@@ -69,7 +69,7 @@ export const DriverRegistrationTab: React.FC = () => {
         return;
       }
 
-      const vType = vehicleTypes.find((v) => v.name === driverForm.vehicleType);
+      const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (driverForm.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (driverForm.vehicleType || '').trim()));
       const isAllFree = globalSettings?.allVehiclesFree === true;
       const isUnlimited = isAllFree || (vType && Number(vType.monthlyFee || 0) === 0);
 

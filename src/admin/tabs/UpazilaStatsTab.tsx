@@ -45,7 +45,7 @@ export const UpazilaStatsTab: React.FC = () => {
         stats[upa] = { total: 0, active: 0, inactive: 0, vehicles: {}, inactiveVehicles: {} };
       }
 
-      const vTypeMatch = vehicleTypes.find((v) => v.name === d.vehicleType);
+      const vTypeMatch = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
       const requiresPayment = vTypeMatch ? (vTypeMatch.monthlyFee || 0) > 0 : false;
       let isExpired = false;
 

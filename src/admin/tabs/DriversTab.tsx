@@ -288,6 +288,21 @@ export const DriversTab: React.FC<DriversTabProps> = ({
 
   const startEditingDriver = (d: any) => {
     setEditingDriverId(d.id);
+
+    let expDateStr = '';
+    let initialExpiryDate = d.expiryDate;
+    if (d.expiryDate?.toDate) {
+      const dt = d.expiryDate.toDate();
+      expDateStr = dt.toISOString().split('T')[0];
+      initialExpiryDate = dt;
+    } else if (d.expiryDate) {
+      const dt = new Date(d.expiryDate);
+      if (!isNaN(dt.getTime())) {
+        expDateStr = dt.toISOString().split('T')[0];
+        initialExpiryDate = dt;
+      }
+    }
+
     setEditDriverForm({
       name: d.name || '',
       phone: d.phone || '',
@@ -307,7 +322,49 @@ export const DriversTab: React.FC<DriversTabProps> = ({
       isCovered: d.isCovered || false,
       vehicleLength: d.vehicleLength || '',
       isActive: d.isActive ?? true,
+      expiryDate: initialExpiryDate,
+      expiryDateStr: expDateStr,
+      durationDays: d.durationDays || 30,
     });
+  };
+
+  const addDaysToEdit = (days: number) => {
+    let base = new Date();
+    if (editDriverForm.expiryDateStr) {
+      const cur = new Date(editDriverForm.expiryDateStr + 'T23:59:59');
+      if (cur > base && cur.getFullYear() <= 2090) {
+        base = cur;
+      }
+    }
+    const newDate = new Date(base.getTime() + days * 86400000);
+    const dateStr = newDate.toISOString().split('T')[0];
+    setEditDriverForm((prev: any) => ({
+      ...prev,
+      expiryDate: newDate,
+      expiryDateStr: dateStr,
+      durationDays: days,
+      isActive: true,
+    }));
+  };
+
+  const setUnlimitedEdit = () => {
+    const newDate = new Date('2099-12-31T23:59:59');
+    setEditDriverForm((prev: any) => ({
+      ...prev,
+      expiryDate: newDate,
+      expiryDateStr: '2099-12-31',
+      isActive: true,
+    }));
+  };
+
+  const setExpiredEdit = () => {
+    const yesterday = new Date(Date.now() - 86400000);
+    setEditDriverForm((prev: any) => ({
+      ...prev,
+      expiryDate: yesterday,
+      expiryDateStr: yesterday.toISOString().split('T')[0],
+      isActive: false,
+    }));
   };
 
   const cancelEditingDriver = () => {
@@ -333,51 +390,41 @@ export const DriversTab: React.FC<DriversTabProps> = ({
   const saveEditedDriver = async (id: string) => {
     try {
       setSavingEdit(true);
-      const vType = vehicleTypes.find((v) => v.name === editDriverForm.vehicleType);
-      const isAllFree = globalSettings?.allVehiclesFree === true;
-      const isUnlimited = isAllFree || (vType && Number(vType.monthlyFee || 0) === 0);
+      const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (editDriverForm.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (editDriverForm.vehicleType || '').trim()));
+      const isFeeZero = vType && Number(vType.monthlyFee || 0) === 0;
 
-      const currentDriver = drivers.find((d) => d.id === id);
-      let newExpiryDate = currentDriver?.expiryDate;
-
-      if (currentDriver) {
-        const wasUnlimited =
-          currentDriver.expiryDate?.toDate &&
-          currentDriver.expiryDate.toDate().getFullYear() > 2090;
-
-        if (isUnlimited && !wasUnlimited) {
-          newExpiryDate = new Date('2099-12-31');
-        } else if (!isUnlimited && wasUnlimited) {
-          newExpiryDate = new Date();
-        }
+      let finalExpiryDate = editDriverForm.expiryDate;
+      if (editDriverForm.expiryDateStr) {
+        finalExpiryDate = new Date(editDriverForm.expiryDateStr + 'T23:59:59');
       }
 
-      // Check if expired
       let isExpired = false;
+      const isUnlimited = finalExpiryDate?.toDate
+        ? finalExpiryDate.toDate().getFullYear() > 2090
+        : (finalExpiryDate instanceof Date ? finalExpiryDate.getFullYear() > 2090 : isFeeZero);
+
       if (!isUnlimited) {
-        if (newExpiryDate?.toDate) {
-          const expTime = newExpiryDate.toDate().getTime();
-          isExpired = expTime <= Date.now() || newExpiryDate.toDate().getFullYear() > 2090;
-        } else if (newExpiryDate) {
-          const expTime = new Date(newExpiryDate).getTime();
-          isExpired = isNaN(expTime) || expTime <= Date.now();
-        } else {
-          isExpired = true;
-        }
+        const expTime = finalExpiryDate?.toDate
+          ? finalExpiryDate.toDate().getTime()
+          : (finalExpiryDate instanceof Date
+              ? finalExpiryDate.getTime()
+              : new Date(finalExpiryDate).getTime());
+        isExpired = isNaN(expTime) || expTime <= Date.now();
       }
 
-      // Enforce isActive: false in Firestore if subscription is expired so car won't show in app/web
       const finalIsActive = isUnlimited
         ? (editDriverForm.isActive ?? true)
         : (!isExpired && (editDriverForm.isActive ?? true));
 
+      const { expiryDateStr, ...dataToSave } = editDriverForm;
+
       await setDoc(
         doc(db, 'drivers', id),
         {
-          ...editDriverForm,
+          ...dataToSave,
           isActive: finalIsActive,
           subscriptionStatus: isExpired ? 'expired' : 'active',
-          expiryDate: newExpiryDate,
+          expiryDate: finalExpiryDate,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -386,14 +433,16 @@ export const DriversTab: React.FC<DriversTabProps> = ({
       setDrivers(
         drivers.map((d) =>
           d.id === id
-            ? { ...d, ...editDriverForm, isActive: finalIsActive, expiryDate: newExpiryDate, subscriptionStatus: isExpired ? 'expired' : 'active' }
+            ? { ...d, ...editDriverForm, isActive: finalIsActive, expiryDate: finalExpiryDate, subscriptionStatus: isExpired ? 'expired' : 'active' }
             : d
         )
       );
       setEditingDriverId(null);
-      await logAction('driver_edit', `Updated driver ${editDriverForm.name} (${id})`);
+      await logAction('driver_edit', 'Updated driver ' + editDriverForm.name + ' (' + id + ')');
+      alert('✓ ড্রাইভার প্রোফাইল ও সাবস্ক্রিপশন মেয়াদ সফলভাবে আপডেট হয়েছে!');
     } catch (err) {
       console.error('Error updating driver:', err);
+      alert('ড্রাইভার আপডেট করতে সমস্যা হয়েছে।');
     } finally {
       setSavingEdit(false);
     }
@@ -475,12 +524,46 @@ export const DriversTab: React.FC<DriversTabProps> = ({
     if (!driver?.id) return;
     try {
       setApprovingDriverId(driver.id);
+
+      // Check pending payment or durationDays
+      let durationDays = 30;
+      try {
+        const payQ = query(
+          collection(db, 'payments'),
+          where('driverId', '==', driver.id),
+          where('status', '==', 'pending')
+        );
+        const paySnap = await getDocs(payQ);
+        if (!paySnap.empty) {
+          const pData = paySnap.docs[0].data();
+          if (pData.durationDays) {
+            durationDays = Number(pData.durationDays);
+          }
+        }
+      } catch (payErr) {
+        console.warn('Payment check skipped:', payErr);
+      }
+
+      if (driver.durationDays && durationDays === 30) {
+        durationDays = Number(driver.durationDays);
+      }
+
       const isAllFree = globalSettings?.allVehiclesFree === true;
       const matchedType = vehicleTypes.find((v) => v.name === driver.vehicleType || v.bnName === driver.vehicleType);
-      const isUnlimited = isAllFree || (matchedType && Number(matchedType.monthlyFee || 0) === 0);
+      const isFeeZero = matchedType && Number(matchedType.monthlyFee || 0) === 0;
+      const isUnlimited = isFeeZero;
+
+      let baseDate = new Date();
+      if (driver.expiryDate?.toDate) {
+        const currentExp = driver.expiryDate.toDate();
+        if (currentExp > baseDate && currentExp.getFullYear() <= 2090) {
+          baseDate = currentExp;
+        }
+      }
+
       const newExpiry = isUnlimited
         ? new Date('2099-12-31')
-        : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+        : new Date(baseDate.getTime() + 1000 * 60 * 60 * 24 * durationDays);
 
       // 1. Update driver doc to active and approved
       await setDoc(
@@ -490,6 +573,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
           status: 'approved',
           subscriptionStatus: 'active',
           expiryDate: newExpiry,
+          durationDays: durationDays,
           approvedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
@@ -505,10 +589,15 @@ export const DriversTab: React.FC<DriversTabProps> = ({
         );
         const paySnap = await getDocs(payQ);
         for (const pDoc of paySnap.docs) {
-          await updateDoc(doc(db, 'payments', pDoc.id), {
-            status: 'approved',
-            approvedAt: serverTimestamp(),
-          });
+          await setDoc(
+            doc(db, 'payments', pDoc.id),
+            {
+              status: 'approved',
+              approvedAt: serverTimestamp(),
+              approvedByName: profile?.name || user?.email || 'Admin',
+            },
+            { merge: true }
+          );
         }
       } catch (payErr) {
         console.warn('Payment approval update skipped:', payErr);
@@ -518,15 +607,15 @@ export const DriversTab: React.FC<DriversTabProps> = ({
       setDrivers((prev) =>
         prev.map((d) =>
           d.id === driver.id
-            ? { ...d, isActive: true, status: 'approved', expiryDate: newExpiry }
+            ? { ...d, isActive: true, status: 'approved', expiryDate: newExpiry, durationDays: durationDays }
             : d
         )
       );
 
-      await logAction('driver_approve', `Approved and activated driver ${driver.name} (${driver.phone})`);
+      await logAction('driver_approve', 'Approved and activated driver ' + driver.name + ' (' + driver.phone + ') for ' + durationDays + ' days');
       setViewingRequestDriver(null);
       if (onClearHighlight) onClearHighlight();
-      alert(`✓ ড্রাইভার "${driver.name}" সফলভাবে অনুমোদন ও সক্রিয় করা হয়েছে!`);
+      alert('✓ ড্রাইভার "' + driver.name + '" সফলভাবে অনুমোদন ও সক্রিয় করা হয়েছে (' + durationDays + ' দিন মেয়াদ)!');
     } catch (err) {
       console.error('Error approving driver:', err);
       alert('ড্রাইভার অনুমোদন করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
@@ -677,7 +766,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
         pending++;
       }
 
-      const vType = vehicleTypes.find((v) => v.name === d.vehicleType);
+      const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
       const requiresPayment = vType && vType.monthlyFee > 0;
       let isUnlimited = false;
       let isExpired = false;
@@ -716,7 +805,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
         return isPending;
       }
 
-      const vType = vehicleTypes.find((v) => v.name === d.vehicleType);
+      const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
       const requiresPayment = vType && vType.monthlyFee > 0;
       let isUnlimited = false;
       let isExpired = false;
@@ -1058,24 +1147,33 @@ export const DriversTab: React.FC<DriversTabProps> = ({
               <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredDrivers.map((d, index) => {
                   const isPending = d.isActive === false && d.status !== 'rejected';
-                  const vType = vehicleTypes.find((v) => v.name === d.vehicleType);
-                  const requiresPayment = vType && vType.monthlyFee > 0;
+                  const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
+                  const requiresPayment = vType && Number(vType.monthlyFee || 0) > 0;
+                  const isAllFree = globalSettings?.allVehiclesFree === true;
+
                   let isUnlimited = false;
                   let isExpired = false;
                   let daysLeft = 0;
+                  let formattedExpDate = '';
 
-                  if (!requiresPayment) {
+                  const expObj = d.expiryDate?.toDate ? d.expiryDate.toDate() : (d.expiryDate instanceof Date ? d.expiryDate : (d.expiryDate ? new Date(d.expiryDate) : null));
+
+                  if (expObj && !isNaN(expObj.getTime())) {
+                    formattedExpDate = expObj.toLocaleDateString();
+                    if (expObj.getFullYear() > 2090) {
+                      isUnlimited = true;
+                      isExpired = false;
+                    } else if (expObj.getTime() > Date.now()) {
+                      isExpired = false;
+                      daysLeft = Math.ceil((expObj.getTime() - Date.now()) / 86400000);
+                    } else {
+                      isExpired = true;
+                    }
+                  } else if (isAllFree || !requiresPayment) {
                     isUnlimited = true;
                     isExpired = false;
                   } else {
-                    if (d.expiryDate?.toDate && d.expiryDate.toDate().getFullYear() > 2090) {
-                      isExpired = true;
-                    } else {
-                      isExpired = d.expiryDate?.toDate ? d.expiryDate.toDate() < new Date() : true;
-                      if (d.expiryDate?.toDate && !isExpired) {
-                        daysLeft = Math.ceil((d.expiryDate.toDate().getTime() - Date.now()) / 86400000);
-                      }
-                    }
+                    isExpired = true;
                   }
 
                   const isActive = d.isActive && !isExpired;
@@ -1239,24 +1337,29 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                             {isPending ? (
                               <span className="text-amber-700 font-bold">অনুমোদনের অপেক্ষায়</span>
                             ) : isUnlimited ? (
-                              <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200/60 font-semibold">
+                              <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200/60 font-semibold">
                                 <Sparkles size={10} />
-                                Unlimited
+                                ফ্রি / Unlimited
                               </span>
                             ) : isExpired ? (
-                              <span className="text-rose-500 font-semibold">Subscription Overdue</span>
-                            ) : daysLeft <= 7 ? (
-                              <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 font-bold">
-                                <Clock size={10} />
-                                Expires in {daysLeft}d
+                              <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 font-bold">
+                                মেয়াদ শেষ (Expired)
                               </span>
-                            ) : d.expiryDate?.toDate ? (
-                              <span className="text-gray-500 flex items-center gap-1 font-mono">
-                                <Calendar size={10} className="text-gray-400" />
-                                {d.expiryDate.toDate().toLocaleDateString()}
+                            ) : daysLeft <= 7 ? (
+                              <span className="inline-flex items-center gap-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                                <Clock size={10} />
+                                {daysLeft} দিন বাকি ({formattedExpDate})
                               </span>
                             ) : (
-                              <span className="text-gray-400">N/A</span>
+                              <span className="inline-flex items-center gap-1 text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">
+                                <Clock size={10} />
+                                {daysLeft} দিন বাকি
+                                {formattedExpDate && (
+                                  <span className="text-[10px] text-gray-500 font-normal font-mono ml-0.5">
+                                    ({formattedExpDate})
+                                  </span>
+                                )}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1357,24 +1460,33 @@ export const DriversTab: React.FC<DriversTabProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredDrivers.map((d, index) => {
                 const isPending = d.isActive === false && d.status !== 'rejected';
-                const vType = vehicleTypes.find((v) => v.name === d.vehicleType);
-                const requiresPayment = vType && vType.monthlyFee > 0;
+                const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
+                const requiresPayment = vType && Number(vType.monthlyFee || 0) > 0;
+                const isAllFree = globalSettings?.allVehiclesFree === true;
+
                 let isUnlimited = false;
                 let isExpired = false;
                 let daysLeft = 0;
+                let formattedExpDate = '';
 
-                if (!requiresPayment) {
+                const expObj = d.expiryDate?.toDate ? d.expiryDate.toDate() : (d.expiryDate instanceof Date ? d.expiryDate : (d.expiryDate ? new Date(d.expiryDate) : null));
+
+                if (expObj && !isNaN(expObj.getTime())) {
+                  formattedExpDate = expObj.toLocaleDateString();
+                  if (expObj.getFullYear() > 2090) {
+                    isUnlimited = true;
+                    isExpired = false;
+                  } else if (expObj.getTime() > Date.now()) {
+                    isExpired = false;
+                    daysLeft = Math.ceil((expObj.getTime() - Date.now()) / 86400000);
+                  } else {
+                    isExpired = true;
+                  }
+                } else if (isAllFree || !requiresPayment) {
                   isUnlimited = true;
                   isExpired = false;
                 } else {
-                  if (d.expiryDate?.toDate && d.expiryDate.toDate().getFullYear() > 2090) {
-                    isExpired = true;
-                  } else {
-                    isExpired = d.expiryDate?.toDate ? d.expiryDate.toDate() < new Date() : true;
-                    if (d.expiryDate?.toDate && !isExpired) {
-                      daysLeft = Math.ceil((d.expiryDate.toDate().getTime() - Date.now()) / 86400000);
-                    }
-                  }
+                  isExpired = true;
                 }
 
                 const isActive = d.isActive && !isExpired;
@@ -1512,16 +1624,14 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                           <span className="text-amber-700 font-bold">অনুমোদনের অপেক্ষায়</span>
                         ) : isUnlimited ? (
                           <span className="inline-flex items-center gap-1 text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-bold text-[10px] border border-purple-200">
-                            <Sparkles size={10} /> Unlimited
+                            <Sparkles size={10} /> ফ্রি / Unlimited
                           </span>
                         ) : isExpired ? (
-                          <span className="text-rose-500 font-bold">Expired</span>
-                        ) : daysLeft <= 7 ? (
-                          <span className="text-amber-700 font-bold">{daysLeft} days left</span>
-                        ) : d.expiryDate?.toDate ? (
-                          <span className="font-mono text-gray-700 font-bold">{d.expiryDate.toDate().toLocaleDateString()}</span>
+                          <span className="text-rose-600 font-bold">মেয়াদ শেষ (Expired)</span>
                         ) : (
-                          <span className="text-gray-400">N/A</span>
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                            <Clock size={11} /> {daysLeft} দিন বাকি {formattedExpDate && '(' + formattedExpDate + ')'}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -2116,6 +2226,124 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                   </label>
                 </div>
               </div>
+
+              {/* Subscription & Validity Controls */}
+              {(() => {
+                let expDays = 0;
+                let isExp = false;
+                let isUnlim = false;
+                let expDateFormatted = '';
+                if (editDriverForm.expiryDateStr) {
+                  const parsed = new Date(editDriverForm.expiryDateStr + 'T23:59:59');
+                  if (!isNaN(parsed.getTime())) {
+                    expDateFormatted = parsed.toLocaleDateString();
+                    if (parsed.getFullYear() > 2090) {
+                      isUnlim = true;
+                    } else if (parsed.getTime() > Date.now()) {
+                      expDays = Math.ceil((parsed.getTime() - Date.now()) / 86400000);
+                    } else {
+                      isExp = true;
+                    }
+                  }
+                } else {
+                  isExp = true;
+                }
+
+                return (
+                  <div className="p-4 rounded-2xl bg-orange-50/40 border border-orange-200/70 flex flex-col gap-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                          <Clock size={15} className="text-primary" />
+                          <span>সাবস্ক্রিপশন ও ভ্যালিডিটি মেয়াদ</span>
+                        </h4>
+                        <p className="text-gray-500 text-xs">অ্যাপ ও ওয়েবসাইটে এই গাড়ির মেয়াদ নিয়ন্ত্রণ করুন</p>
+                      </div>
+                      <div>
+                        {isUnlim ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                            ফ্রি / আনলিমিটেড
+                          </span>
+                        ) : isExp ? (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                            মেয়াদ শেষ (Expired)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            মেয়াদ আছে: {expDays} দিন ({expDateFormatted})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick Extend Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-xs font-semibold text-gray-600 mr-1">মেয়াদ যোগ করুন:</span>
+                      <button
+                        type="button"
+                        onClick={() => addDaysToEdit(30)}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-2xs"
+                      >
+                        +৩০ দিন
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addDaysToEdit(90)}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-2xs"
+                      >
+                        +৯০ দিন (৩ মাস)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addDaysToEdit(180)}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-2xs"
+                      >
+                        +১৮০ দিন (৬ মাস)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addDaysToEdit(365)}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shadow-2xs"
+                      >
+                        +৩৬৫ দিন (১ বছর)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={setUnlimitedEdit}
+                        className="px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-xs font-bold text-purple-700 hover:bg-purple-600 hover:text-white transition-all shadow-2xs"
+                      >
+                        আনলিমিটেড
+                      </button>
+                      <button
+                        type="button"
+                        onClick={setExpiredEdit}
+                        className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-600 hover:text-white transition-all shadow-2xs"
+                      >
+                        মেয়াদ শেষ করুন
+                      </button>
+                    </div>
+
+                    {/* Custom Date Input */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-orange-100">
+                      <label className="text-xs font-semibold text-gray-600">নির্দিষ্ট এক্সপায়ারি তারিখ:</label>
+                      <input
+                        type="date"
+                        value={editDriverForm.expiryDateStr || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditDriverForm((prev: any) => ({
+                            ...prev,
+                            expiryDateStr: val,
+                            expiryDate: val ? new Date(val + 'T23:59:59') : null,
+                            isActive: val ? new Date(val + 'T23:59:59').getTime() > Date.now() : false,
+                          }));
+                        }}
+                        className="bg-white border border-gray-300 rounded-xl px-3 py-1 text-xs outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary font-mono shadow-2xs"
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Status Toggle */}
               <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200/80 flex items-center justify-between">

@@ -57,7 +57,7 @@ export async function syncDriversSubscriptionStatus(
       }
 
       // Check vehicle type pricing
-      const vType = vehicleTypes?.find((v) => v.name === d.vehicleType);
+      const vType = vehicleTypes?.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
       const vehicleMonthlyFee = Number(vType?.monthlyFee ?? 0);
       const requiresPayment = !isAllFree && vehicleMonthlyFee > 0;
 

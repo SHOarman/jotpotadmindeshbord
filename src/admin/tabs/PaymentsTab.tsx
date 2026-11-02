@@ -58,7 +58,7 @@ export const PaymentsTab: React.FC = () => {
     if (paymentForm.driverId && paymentForm.durationDays) {
       const driver = drivers.find((d) => d.id === paymentForm.driverId);
       if (driver) {
-        const vType = vehicleTypes.find((v) => v.name === driver.vehicleType);
+        const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (driver.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (driver.vehicleType || '').trim()));
         if (vType && vType.monthlyFee) {
           const duration = parseInt(paymentForm.durationDays) || 0;
           let calculatedAmount = Math.round((vType.monthlyFee / 30) * duration);
@@ -152,24 +152,41 @@ export const PaymentsTab: React.FC = () => {
         { merge: true }
       );
 
-      const driverRef = doc(db, 'drivers', payment.driverId);
-      const driverSnap = await getDoc(driverRef);
+      let targetDriverRef = doc(db, 'drivers', payment.driverId);
+      let driverSnap = await getDoc(targetDriverRef);
+      if (!driverSnap.exists() && payment.driverPhone) {
+        const qPhone = query(collection(db, 'drivers'), where('phone', '==', payment.driverPhone));
+        const phoneSnap = await getDocs(qPhone);
+        if (!phoneSnap.empty) {
+          targetDriverRef = doc(db, 'drivers', phoneSnap.docs[0].id);
+          driverSnap = phoneSnap.docs[0];
+        }
+      }
+
       if (driverSnap.exists()) {
         const driverData = driverSnap.data();
-        let currentExpiry = driverData.expiryDate?.toDate ? driverData.expiryDate.toDate() : new Date();
-        if (!driverData.isActive || currentExpiry < new Date() || currentExpiry.getFullYear() > 2090) {
+        let currentExpiry = driverData.expiryDate?.toDate
+          ? driverData.expiryDate.toDate()
+          : (driverData.expiryDate instanceof Date
+              ? driverData.expiryDate
+              : new Date(driverData.expiryDate || Date.now()));
+
+        if (isNaN(currentExpiry.getTime()) || !driverData.isActive || currentExpiry < new Date() || currentExpiry.getFullYear() > 2090) {
           currentExpiry = new Date();
         }
 
-        const newExpiry = new Date(currentExpiry);
-        newExpiry.setDate(newExpiry.getDate() + (payment.durationDays || 30));
+        const durationDays = Number(payment.durationDays) || 30;
+        const newExpiry = new Date(currentExpiry.getTime() + 1000 * 60 * 60 * 24 * durationDays);
 
         await setDoc(
-          driverRef,
+          targetDriverRef,
           {
             expiryDate: newExpiry,
+            durationDays: durationDays,
             isActive: true,
+            status: 'approved',
             subscriptionStatus: 'active',
+            updatedAt: serverTimestamp(),
           },
           { merge: true }
         );
@@ -180,7 +197,8 @@ export const PaymentsTab: React.FC = () => {
           p.id === payment.id ? { ...p, status: 'approved', approvedByName: approverName } : p
         )
       );
-      await logAction('approve_payment', `Approved ৳${payment.amount} for ${payment.driverName}`);
+      await logAction('approve_payment', 'Approved ৳' + payment.amount + ' for ' + payment.driverName + ' (' + (payment.durationDays || 30) + ' days)');
+      alert('✓ পেমেন্ট অনুমোদন সম্পন্ন হয়েছে! গাড়ির মেয়াদ ' + (payment.durationDays || 30) + ' দিন বাড়ানো হয়েছে।');
     } catch (err) {
       console.error('Error approving payment:', err);
       alert('Failed to approve payment.');
