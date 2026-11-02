@@ -2,8 +2,29 @@
   RewriteEngine On
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
+
+  # Never redirect missing JS, CSS, or media assets to index.html (return 404 instead of HTML to prevent MIME type errors)
+  RewriteCond %{REQUEST_URI} \.(js|mjs|css|json|png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot)$ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ - [R=404,L]
+
+  # Standard SPA fallback for frontend routes
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteCond %{REQUEST_FILENAME} !-l
   RewriteRule . /index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Never cache index.html or service worker
+  <FilesMatch "(index\.html|sw\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </FilesMatch>
+
+  # Cache static assets with long max-age
+  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|svg|ico|webp|woff|woff2)$">
+    Header set Cache-Control "max-age=31536000, public, immutable"
+  </FilesMatch>
 </IfModule>

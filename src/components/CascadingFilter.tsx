@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+﻿import React, { useEffect, useState } from 'react';
+import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { VehicleType } from '../types';
@@ -20,6 +20,7 @@ export const CascadingFilter: React.FC<CascadingFilterProps> = ({ onFilterChange
   const [upazilas, setUpazilas] = useState<string[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
   const [customLocations, setCustomLocations] = useState<any[]>([]);
+  const [cloudHierarchy, setCloudHierarchy] = useState<Record<string, Record<string, string[]>> | null>(null);
 
   const [selected, setSelected] = useState({
     division: initialState?.division || '',
