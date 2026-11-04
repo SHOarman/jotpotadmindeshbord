@@ -59,7 +59,8 @@ export async function syncDriversSubscriptionStatus(
       // Check vehicle type pricing
       const vType = vehicleTypes?.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
       const vehicleMonthlyFee = Number(vType?.monthlyFee ?? 0);
-      const requiresPayment = !isAllFree && vehicleMonthlyFee > 0;
+      const isVehicleActive = vType ? (vType.isVisible !== false && (vType as any).isActive !== false && (vType as any).status !== 'hidden') : true;
+      const requiresPayment = !isAllFree && isVehicleActive && vehicleMonthlyFee > 0;
 
       // Parse expiry date
       let expiryTime: number | null = null;

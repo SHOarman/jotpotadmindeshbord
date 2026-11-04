@@ -49,8 +49,9 @@ import {
 import { db } from '../../firebase';
 import { useAdmin } from '../context/AdminContext';
 import { CascadingFilter } from '../../components/CascadingFilter';
-import { cn } from '../../lib/utils';
+import { cn, formatVehicleTypeBn } from '../../lib/utils';
 import { syncDriversSubscriptionStatus } from '../../lib/subscriptionSync';
+import { bdDivisions, bdDistricts } from '../../data/bd-locations';
 
 export interface DriversTabProps {
   initialFilterStatus?: 'all' | 'active' | 'inactive' | 'pending' | 'expiring';
@@ -767,7 +768,8 @@ export const DriversTab: React.FC<DriversTabProps> = ({
       }
 
       const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
-      const requiresPayment = vType && vType.monthlyFee > 0;
+      const isVehicleActive = vType ? (vType.isVisible !== false && (vType as any).isActive !== false && (vType as any).status !== 'hidden') : true;
+      const requiresPayment = vType && vType.monthlyFee > 0 && isVehicleActive;
       let isUnlimited = false;
       let isExpired = false;
 
@@ -806,7 +808,8 @@ export const DriversTab: React.FC<DriversTabProps> = ({
       }
 
       const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
-      const requiresPayment = vType && vType.monthlyFee > 0;
+      const isVehicleActive = vType ? (vType.isVisible !== false && (vType as any).isActive !== false && (vType as any).status !== 'hidden') : true;
+      const requiresPayment = vType && vType.monthlyFee > 0 && isVehicleActive;
       let isUnlimited = false;
       let isExpired = false;
 
@@ -1148,7 +1151,8 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                 {filteredDrivers.map((d, index) => {
                   const isPending = d.isActive === false && d.status !== 'rejected';
                   const vType = vehicleTypes.find((v) => (v.name && v.name.toLowerCase().trim() === (d.vehicleType || '').toLowerCase().trim()) || (v.bnName && v.bnName.trim() === (d.vehicleType || '').trim()));
-                  const requiresPayment = vType && Number(vType.monthlyFee || 0) > 0;
+                  const isVehicleActive = vType ? (vType.isVisible !== false && (vType as any).isActive !== false && (vType as any).status !== 'hidden') : true;
+                  const requiresPayment = vType && Number(vType.monthlyFee || 0) > 0 && isVehicleActive;
                   const isAllFree = globalSettings?.allVehiclesFree === true;
 
                   let isUnlimited = false;
@@ -1261,7 +1265,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                             )}
                           >
                             <VehicleIcon size={11} />
-                            <span>{d.vehicleType || 'Unassigned'}</span>
+                            <span>{formatVehicleTypeBn(d.vehicleType) || 'Unassigned'}</span>
                           </span>
 
                           {/* Vehicle Model & Registration Plate */}
@@ -1598,7 +1602,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                             )}
                           >
                             <VehicleIcon size={11} />
-                            <span>{d.vehicleType || 'Unassigned'}</span>
+                            <span>{formatVehicleTypeBn(d.vehicleType) || 'Unassigned'}</span>
                           </span>
                           <span className="font-mono text-[10px] font-bold bg-white text-slate-700 px-1.5 py-0.5 rounded border border-gray-200">
                             {d.vehicleRegNumber || 'No plate'}
@@ -1828,7 +1832,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                   <div className="p-3 bg-white border border-gray-200/90 rounded-xl">
                     <span className="text-gray-400 text-[11px] block font-medium">গাড়ির ধরন</span>
                     <span className="font-bold text-gray-900 text-xs mt-0.5 block">
-                      {viewingRequestDriver.vehicleType || 'Not specified'}
+                      {formatVehicleTypeBn(viewingRequestDriver.vehicleType) || 'Not specified'}
                     </span>
                   </div>
 
@@ -2130,18 +2134,151 @@ export const DriversTab: React.FC<DriversTabProps> = ({
                 </div>
               </div>
 
-              {/* Location Hierarchy */}
+              {/* Operational Location (ঠিকানা ও এলাকা নির্বাচন) */}
               <div>
-                <h4 className="font-bold text-gray-400 uppercase tracking-wider text-[11px] mb-3">
-                  Operational Location
-                </h4>
-                <div className="bg-gray-50/70 p-3.5 rounded-2xl border border-gray-200/80">
-                  <CascadingFilter
-                    compact
-                    hideVehicleType={true}
-                    initialState={editDriverForm}
-                    onFilterChange={(filters) => setEditDriverForm({ ...editDriverForm, ...filters })}
-                  />
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-gray-700 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                    <MapPin size={13} className="text-orange-500" />
+                    ঠিকানা ও এলাকা (Operational Location)
+                  </h4>
+                  <span className="text-[10px] text-gray-400">ড্রাইভারের বর্তমান এলাকা পরিবর্তন করুন</span>
+                </div>
+                <div className="bg-orange-50/20 p-4 rounded-2xl border border-orange-100/80 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Division */}
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-[11px]">বিভাগ (Division) *</label>
+                      <select
+                        value={(() => {
+                          const div = (editDriverForm.division || '').toLowerCase().trim();
+                          const match = bdDivisions.find(d => d.division.toLowerCase() === div || d.divisionbn === editDriverForm.division?.trim());
+                          return match ? match.division : editDriverForm.division;
+                        })()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const divObj = bdDivisions.find(d => d.division === val);
+                          setEditDriverForm((prev: any) => ({
+                            ...prev,
+                            division: divObj ? divObj.divisionbn : val,
+                            district: '',
+                            upazila: '',
+                            union: '',
+                            ward: '',
+                          }));
+                        }}
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-xs font-semibold"
+                      >
+                        <option value="">বিভাগ নির্বাচন করুন</option>
+                        {bdDivisions.map((d) => (
+                          <option key={d.division} value={d.division}>
+                            {d.divisionbn} ({d.division})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* District */}
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-[11px]">জেলা (District) *</label>
+                      {(() => {
+                        const divLower = (editDriverForm.division || '').toLowerCase().trim();
+                        const divMatch = bdDivisions.find(d => d.division.toLowerCase() === divLower || d.divisionbn === editDriverForm.division?.trim());
+                        const divKey = divMatch ? divMatch.division.toLowerCase() : divLower;
+                        const distList = bdDistricts[divKey] || [];
+
+                        return (
+                          <select
+                            value={(() => {
+                              const dist = (editDriverForm.district || '').toLowerCase().trim();
+                              const match = distList.find((d: any) => d.district.toLowerCase() === dist || d.districtbn === editDriverForm.district?.trim());
+                              return match ? match.district : editDriverForm.district;
+                            })()}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const distObj = distList.find((d: any) => d.district === val);
+                              setEditDriverForm((prev: any) => ({
+                                ...prev,
+                                district: distObj ? distObj.districtbn : val,
+                                upazila: '',
+                                union: '',
+                                ward: '',
+                              }));
+                            }}
+                            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-xs font-semibold"
+                          >
+                            <option value="">জেলা নির্বাচন করুন</option>
+                            {distList.map((d: any) => (
+                              <option key={d.district} value={d.district}>
+                                {d.districtbn} ({d.district})
+                              </option>
+                            ))}
+                            {editDriverForm.district && !distList.some((d: any) => d.district === editDriverForm.district || d.districtbn === editDriverForm.district) && (
+                              <option value={editDriverForm.district}>{editDriverForm.district}</option>
+                            )}
+                          </select>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Upazila */}
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-[11px]">উপজেলা / থানা (Upazila) *</label>
+                      {(() => {
+                        const divLower = (editDriverForm.division || '').toLowerCase().trim();
+                        const divMatch = bdDivisions.find(d => d.division.toLowerCase() === divLower || d.divisionbn === editDriverForm.division?.trim());
+                        const divKey = divMatch ? divMatch.division.toLowerCase() : divLower;
+                        const distList = bdDistricts[divKey] || [];
+                        const distLower = (editDriverForm.district || '').toLowerCase().trim();
+                        const distObj = distList.find((d: any) => d.district.toLowerCase() === distLower || d.districtbn === editDriverForm.district?.trim());
+                        const upazilaList = distObj?.upazilla || [];
+
+                        return (
+                          <select
+                            value={editDriverForm.upazila || ''}
+                            onChange={(e) => setEditDriverForm((prev: any) => ({ ...prev, upazila: e.target.value }))}
+                            className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-xs font-semibold"
+                          >
+                            <option value="">উপজেলা নির্বাচন করুন</option>
+                            {upazilaList.map((u: string) => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                            {editDriverForm.upazila && !upazilaList.includes(editDriverForm.upazila) && (
+                              <option value={editDriverForm.upazila}>{editDriverForm.upazila}</option>
+                            )}
+                          </select>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Union / Pourashava and Ward */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-[11px]">
+                        ইউনিয়ন / পৌরসভা (Union / Pourashava)
+                      </label>
+                      <input
+                        type="text"
+                        value={editDriverForm.union || ''}
+                        onChange={(e) => setEditDriverForm((prev: any) => ({ ...prev, union: e.target.value }))}
+                        placeholder="যেমন: সাভার পৌরসভা / ধামসোনা"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-[11px]">
+                        ওয়ার্ড / এলাকা / গ্রাম (Ward / Area)
+                      </label>
+                      <input
+                        type="text"
+                        value={editDriverForm.ward || ''}
+                        onChange={(e) => setEditDriverForm((prev: any) => ({ ...prev, ward: e.target.value }))}
+                        placeholder="যেমন: ৩ নং ওয়ার্ড"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2441,7 +2578,7 @@ export const DriversTab: React.FC<DriversTabProps> = ({
               <div className="flex items-center justify-between">
                 <span className="font-bold text-gray-500">গাড়ির ধরন / মডেল:</span>
                 <span className="font-semibold text-gray-800">
-                  {driverToDelete.vehicleType} {driverToDelete.vehicleModel ? `(${driverToDelete.vehicleModel})` : ''}
+                  {formatVehicleTypeBn(driverToDelete.vehicleType)} {driverToDelete.vehicleModel ? `(${driverToDelete.vehicleModel})` : ''}
                 </span>
               </div>
               {driverToDelete.vehicleRegNumber && (

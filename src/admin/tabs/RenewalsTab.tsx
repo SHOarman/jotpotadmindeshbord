@@ -24,7 +24,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { useAdmin } from '../context/AdminContext';
-import { cn } from '../../lib/utils';
+import { cn, formatVehicleTypeBn } from '../../lib/utils';
 import axios from 'axios';
 import { syncDriversSubscriptionStatus } from '../../lib/subscriptionSync';
 
@@ -456,7 +456,7 @@ export const RenewalsTab: React.FC<RenewalsTabProps> = ({
                       )}
                       {d?.vehicleType && (
                         <div className="text-[11px] text-gray-400">
-                          গাড়ি: {d.vehicleModel ? `${d.vehicleModel} (${d.vehicleType})` : d.vehicleType}
+                          গাড়ি: {d.vehicleModel ? `${d.vehicleModel} (${d.vehicleType})` : formatVehicleTypeBn(d.vehicleType)}
                         </div>
                       )}
                     </div>

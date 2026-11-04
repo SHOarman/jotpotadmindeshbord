@@ -22,6 +22,7 @@ import {
   Check,
   Layers,
   RefreshCw,
+  EyeOff,
 } from 'lucide-react';
 import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -315,6 +316,10 @@ export const VehicleTypesTab: React.FC = () => {
         sixMonthFee: f6,
         yearlyFee: fY,
       });
+      if (newFee > 0) {
+        await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: false }, { merge: true });
+        await refreshGlobalSettings();
+      }
       await refreshVehicleTypes();
       await syncDriversSubscriptionStatus();
       await logAction('toggle_single_free', `Changed fee for ${v.name} to ৳${newFee}`);
@@ -373,6 +378,10 @@ export const VehicleTypesTab: React.FC = () => {
       };
 
       await addVehicleBoth(payload);
+      if (monthly > 0) {
+        await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: false }, { merge: true });
+        await refreshGlobalSettings();
+      }
       await refreshVehicleTypes();
       setNewVehicle({
         name: '',
@@ -392,8 +401,14 @@ export const VehicleTypesTab: React.FC = () => {
 
   const handleToggleVehicleType = async (id: string, currentStatus: boolean) => {
     try {
-      await updateVehicleBoth(id, { isVisible: !currentStatus });
+      const nextStatus = !currentStatus;
+      await updateVehicleBoth(id, {
+        isVisible: nextStatus,
+        isActive: nextStatus,
+        status: nextStatus ? 'active' : 'hidden',
+      });
       await refreshVehicleTypes();
+      await syncDriversSubscriptionStatus();
     } catch (err) {
       console.error('Error toggling vehicle type:', err);
     }
@@ -433,6 +448,10 @@ export const VehicleTypesTab: React.FC = () => {
       };
 
       await updateVehicleBoth(editingVehicle.id, payload);
+      if (monthly > 0) {
+        await setDoc(doc(db, 'settings', 'global'), { allVehiclesFree: false }, { merge: true });
+        await refreshGlobalSettings();
+      }
       setEditingVehicle(null);
       await refreshVehicleTypes();
       await syncDriversSubscriptionStatus();
@@ -823,7 +842,15 @@ export const VehicleTypesTab: React.FC = () => {
 
                       {/* Rates Breakdown */}
                       <td className="py-3.5 px-6">
-                        {isFree ? (
+                        {!isVisible ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-xl shadow-2xs w-fit">
+                              <EyeOff size={12} />
+                              হিডেন (ফি বন্ধ)
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-medium">স্ট্যাটাস হিডেন থাকায় ফি কার্যকর নয়</span>
+                          </div>
+                        ) : isFree ? (
                           <div className="flex flex-col gap-0.5">
                             <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-100/80 border border-emerald-200/80 px-2.5 py-1 rounded-xl shadow-2xs w-fit">
                               <Sparkles size={12} />
@@ -960,7 +987,12 @@ export const VehicleTypesTab: React.FC = () => {
                       </div>
                     </div>
 
-                    {isFree ? (
+                    {!isVisible ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-lg">
+                        <EyeOff size={11} />
+                        হিডেন (ফি বন্ধ)
+                      </span>
+                    ) : isFree ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg">
                         <Sparkles size={11} />
                         সম্পূর্ণ ফ্রি (৳০)

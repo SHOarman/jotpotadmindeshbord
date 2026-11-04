@@ -266,7 +266,11 @@ export const DriverRegistrationTab: React.FC = () => {
           </div>
         )}
 
-        {(driverForm.vehicleType?.toLowerCase() === 'truck' || driverForm.vehicleType?.toLowerCase() === 'pickup') && (
+        {(driverForm.vehicleType?.toLowerCase() === 'truck' ||
+          driverForm.vehicleType?.toLowerCase() === 'pickup' ||
+          driverForm.vehicleType?.includes('পিকআপ') ||
+          driverForm.vehicleType?.includes('পিক আপ') ||
+          driverForm.vehicleType?.includes('ট্রাক')) && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">কভার স্ট্যাটাস</label>
