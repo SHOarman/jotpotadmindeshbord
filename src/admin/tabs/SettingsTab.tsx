@@ -189,10 +189,12 @@ export const SettingsTab: React.FC = () => {
         email: emailVal,
         contactAddress: addressVal,
         address: addressVal,
-        footerCopyright: (globalSettings.footerCopyright || '').trim(),
+        footerCopyright: (globalSettings.footerCopyrightBn || globalSettings.footerCopyright || '').trim(),
         footerCopyrightBn: (globalSettings.footerCopyrightBn || globalSettings.footerCopyright || '').trim(),
         footerCopyrightEn: (globalSettings.footerCopyrightEn || '').trim(),
-        footerAboutText: (globalSettings.footerAboutText || '').trim(),
+        footerAboutText: (globalSettings.footerAboutTextBn || globalSettings.footerAboutText || '').trim(),
+        footerAboutTextBn: (globalSettings.footerAboutTextBn || globalSettings.footerAboutText || '').trim(),
+        footerAboutTextEn: (globalSettings.footerAboutTextEn || '').trim(),
         privacyPolicyTitleBn: (globalSettings.privacyPolicyTitleBn || '').trim(),
         aboutUsTitleBn: (globalSettings.aboutUsTitleBn || '').trim(),
         termsConditionsTitleBn: (globalSettings.termsConditionsTitleBn || '').trim(),
@@ -924,43 +926,91 @@ export const SettingsTab: React.FC = () => {
 
             {/* 1. Footer Copyright & About Text */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-4 shadow-2xs">
-              <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                <Copyright size={18} className="text-primary" />
-                <span>ফুটার কপিরাইট ও পরিচিতি বক্তব্য</span>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Copyright size={18} className="text-primary" />
+                  <span>ফুটার পরিচিতি ও কপিরাইট কন্ট্রোল (বাংলা ও ইংরেজি)</span>
+                </div>
+                <span className="text-[11px] text-gray-400 font-medium">বাংলা ও ইংরেজি মোডে পরিবর্তনশীল</span>
               </div>
+
+              {/* 1.1 Footer About Description (Bangla & English) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    কপিরাইট লেখা (Footer Copyright Text)
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    ফুটার পরিচিতি বর্ণনা (বাংলা)
                   </label>
-                  <input
-                    type="text"
-                    value={globalSettings.footerCopyright ?? '© 2026 ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।'}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerCopyright: e.target.value })}
-                    placeholder="© 2026 ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।"
-                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm font-semibold"
+                  <textarea
+                    rows={3}
+                    value={
+                      globalSettings.footerAboutTextBn ??
+                      globalSettings.footerAboutText ??
+                      'ঝটপট হলো বাংলাদেশের সকল জেলার জন্য ভাড়ায় চালিত গাড়ির উন্মুক্ত ডিরেক্টরি। আপনার প্রয়োজনে সহজেই সরাসরি ড্রাইভারের সাথে যোগাযোগ করুন।'
+                    }
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerAboutTextBn: e.target.value, footerAboutText: e.target.value })}
+                    placeholder="ফুটারের লোগোর নিচে দেখানো বাংলা সংক্ষিপ্ত পরিচিতি..."
+                    className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-primary text-xs leading-relaxed"
                   />
                   <span className="text-[11px] text-gray-400">
-                    ওয়েবসাইটের একেবারে নিচে ফুটারের মাঝখানে প্রদর্শিত হবে।
+                    ইউজার যখন অ্যাপে বাংলা সিলেক্ট রাখবে তখন এটি দেখাবে।
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    ফুটার পরিচিতি বক্তব্য (Footer About Description)
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Footer About Description (English)
                   </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     value={
-                      globalSettings.footerAboutText ??
-                      'ঝটপট হলো বাংলাদেশের সকল জেলার জন্য ভাড়ায় চালিত গাড়ির উন্মুক্ত ডিরেক্টরি। আপনার প্রয়োজনে সহজেই সরাসরি ড্রাইভারের সাথে যোগাযোগ করুন।'
+                      globalSettings.footerAboutTextEn ??
+                      'Jotpot is Bangladesh\'s premier open directory for rental vehicles. Connect directly with trusted drivers across all districts.'
                     }
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerAboutText: e.target.value })}
-                    placeholder="ফুটারের লোগোর নিচে দেখানো সংক্ষিপ্ত পরিচিতি..."
-                    className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerAboutTextEn: e.target.value })}
+                    placeholder="Brief about description shown in English mode..."
+                    className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-primary text-xs leading-relaxed font-sans"
                   />
                   <span className="text-[11px] text-gray-400">
-                    লোগোর নিচে প্রদর্শিত সংক্ষিপ্ত বর্ণনা।
+                    ইউজার যখন অ্যাপে English সিলেক্ট করবে তখন এটি দেখাবে।
+                  </span>
+                </div>
+              </div>
+
+              {/* 1.2 Footer Copyright Text (Bangla & English) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    কপিরাইট লেখা (বাংলা)
+                  </label>
+                  <input
+                    type="text"
+                    value={globalSettings.footerCopyrightBn ?? globalSettings.footerCopyright ?? '© ২০২৬ ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerCopyrightBn: e.target.value, footerCopyright: e.target.value })}
+                    placeholder="© ২০২৬ ঝটপট ডিরেক্টরি। সর্বস্বত্ব সংরক্ষিত।"
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-xs font-semibold"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    ফুটারের নিচের কপিরাইট লাইন (বাংলা মোডে)।
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Copyright Text (English)
+                  </label>
+                  <input
+                    type="text"
+                    value={globalSettings.footerCopyrightEn ?? '© 2026 Jotpot Directory. All rights reserved.'}
+                    onChange={(e) => setGlobalSettings({ ...globalSettings, footerCopyrightEn: e.target.value })}
+                    placeholder="© 2026 Jotpot Directory. All rights reserved."
+                    className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-xs font-semibold font-sans"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    Bottom copyright line in English mode.
                   </span>
                 </div>
               </div>
